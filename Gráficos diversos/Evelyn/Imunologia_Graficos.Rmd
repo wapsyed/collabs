@@ -1058,7 +1058,7 @@ plot_group = table %>%
     xmin = "xmin", 
     xmax = "xmax",
     y.position = "y.position",
-    bracket.size = 0,
+    bracket.size = 0.3, 
     tip.length = 0,
     inherit.aes = FALSE
   ) +
@@ -1100,7 +1100,7 @@ plot_group = table %>%
                              "Alum" = "#ff5d8f"))+
     labs(fill = "Grupo",
        color = "Grupo",
-       x = "",
+       x = "Tempo",
        y = "log10(OD50)") 
 
 plot_group
