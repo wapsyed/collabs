@@ -273,12 +273,15 @@ citometria_clean %>%
 
 
 # Q-Q Plot
-citometria_clean %>% 
+qq_plot = citometria_clean %>% 
 ggplot(aes(sample = valor,
            color = grupo)) +
   scale_x_continuous(expand = c(0.1,0.1), 
-                     n.breaks = 5
+                     n.breaks = 3
                      ) +  
+  scale_y_continuous(expand = c(0.1,0.1), 
+                     n.breaks = 3
+                     ) + 
   stat_qq() +
   stat_qq_line() +
   facet_grid(~condicao~teste+marcador, 
@@ -286,7 +289,11 @@ ggplot(aes(sample = valor,
              axes = "all",
              axis.labels = "margins") +
   theme_minimal() +
-  scale_color_jama() +
+   scale_color_manual(values = c("PBS" = "gray90",
+                             "ED-III" = "#9f9fed",
+                             "QB" = "#adf7b6",
+                             "Vac" = "#a9def9",
+                             "Alum" = "#ff5d8f"))+
     theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
@@ -313,6 +320,16 @@ ggplot(aes(sample = valor,
   labs(x = "",
        y = "",
        title = "Q-Q Plot - Teste de normalidade")
+
+
+
+qq_plot
+
+qq_plot %>%
+ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_qqplot.png"),
+       width = 10,
+       height = 10,
+       bg = "white")
 
 
 ```
@@ -715,7 +732,11 @@ ggplot(aes(sample = valor_log,
              axes = "all",
              axis.labels = "margins") +
   theme_minimal() +
-  scale_color_jama() +
+  scale_color_manual(values = c("PBS" = "white",
+                             "ED-III" = "#9f9fed",
+                             "QB" = "#adf7b6",
+                             "Vac" = "#a9def9",
+                             "Alum" = "#ff5d8f"))+
     theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
@@ -748,7 +769,7 @@ ggplot(aes(sample = valor_log,
 qq_plot
 
 qq_plot %>%
-ggsave(filename = here("Gráficos diversos", "ELISA_OD50_qqplot.png"),
+ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_qqplot.png"),
        width = 5,
        height = 5,
        bg = "white")
@@ -1115,8 +1136,7 @@ plot_united = (
                                                            b = -10)),
       plot.subtitle = element_text(hjust = 0, margin = margin(l = 30))
     ),
-    title = "Citometria - All vs. All\n",
-    subtitle = "Welch's ANOVA, Games-Howell post-hoc test. \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01.\nBlack thick lines correspond to the mean."
+    title = "ELISA OD50"
   )
 
 plot_united
@@ -1134,20 +1154,20 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_ByGroup_ByDay
 
 # IgG Subclasses
 ```{r fig.height=5, fig.width=10}
-
 igg_subclasses <- read_excel(here("Gráficos diversos", "Evelyn", "igg_subclasses.xlsx"))
 
 
 table = igg_subclasses %>% 
-  pivot_longer(cols = -Teste,
+  drop_na() %>% 
+  pivot_longer(cols = -teste,
                values_to = "valor",
                names_to = "condicao") %>% 
     clean_names() %>% 
   group_by(teste) %>%
   separate(condicao, into = c("condicao", "del"), "\\...") %>% 
   select(-del) %>% 
-  ungroup() %>% 
-  mutate(
+  ungroup() %>%
+mutate(
          valor = str_replace(valor, ",", ".") %>% 
            str_replace(", ", ".") %>% 
            str_replace(". ", ".") %>% 
@@ -1203,7 +1223,7 @@ table
 
 ## ANOVA e posthoc
 ### Teste de normalidade
-```{r fig.height=5, fig.width=5}
+```{r fig.height=10, fig.width=5}
 #Teste de Shapiro-Wilk
 ## p<0.05: Não-normal
 ## p>0.05: Normal
@@ -1269,11 +1289,11 @@ ggplot(aes(sample = valor_log,
 
 qq_plot
 
-# qq_plot %>%
-# ggsave(filename = here("Gráficos diversos", "ELISA_OD50_qqplot.png"),
-#        width = 5,
-#        height = 5,
-#        bg = "white")
+qq_plot %>%
+ggsave(filename = here("Gráficos diversos", "ELISA_OD50_IgG_qqplot.png"),
+       width = 5,
+       height = 10,
+       bg = "white")
 
 
 ```
@@ -1283,18 +1303,18 @@ qq_plot
 ```{r fig.height=8, fig.width=12}
 library(rstatix) 
 anova_summary <- table %>%
- filter(!grupo %in% c("QB", "PBS")) %>% 
-  group_by(dia) %>%
+ # filter(!grupo %in% c("QB", "PBS")) %>% 
+  group_by(teste) %>%
   welch_anova_test(valor_log ~ grupo_n)
 
 stat.test_dia = table %>% 
   filter(!grupo %in% c("QB", "PBS")) %>%
     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-  group_by(dia) %>%
+  group_by(teste) %>%
   games_howell_test(valor_log ~ grupo_n, 
             detailed = T) %>% 
-  group_by(dia) %>%
+  group_by(teste) %>%
   add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>% 
   ungroup() %>% 
   mutate(p.adj.signif = case_when(
@@ -1304,7 +1324,7 @@ stat.test_dia = table %>%
       TRUE ~ "ns"                        # p > 0.10
     )
   ) %>% 
-  group_by(dia) %>% 
+  group_by(teste) %>% 
   mutate(
     xmin = group1,
     xmax = group2,
@@ -1319,17 +1339,17 @@ effect_size <- table %>%
   filter(!grupo %in% c("QB", "PBS")) %>% 
     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-  group_by(dia) %>%
+  group_by(teste) %>%
   cohens_d(valor_log ~ grupo_n, var.equal = FALSE) %>% 
   mutate(effsize = round(effsize, 1))
 
 # Join final
 stat.test<- stat.test_dia %>% 
-  inner_join(effect_size, by = c("dia", "group1", "group2"))
+  inner_join(effect_size, by = c("teste", "group1", "group2"))
 ```
 
 
-```{r fig.height=8, fig.width=12}
+```{r fig.height=5, fig.width=10}
 plot = table %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
@@ -1337,7 +1357,7 @@ plot = table %>%
   ggplot() +
   aes(x = grupo_n,
       y = valor_log) +
-    facet_grid(~paste("Dia", dia),
+    facet_grid(~teste,
              space = "free_x",
              scales = "free_x",
              axes = "all",
@@ -1427,228 +1447,19 @@ plot = table %>%
     labs(fill = "Grupo",
        color = "Grupo",
        x = "",
-       y = "OD50",
-       title = "ELISA OD50% - All vs. All ",
-       subtitle =  "Kruskal-Wallis test (Benjamini-Hochberg correction). \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01. Black lines correspond to the mean.") 
+       y = "Log10(OD50)",
+       title = "ELISA OD50% - All vs. All ") 
 
 plot
 
-```
-
-### Por grupo
-
-
-#### Teste de diferenças
-```{r fig.height=4, fig.width=10}
-
- table
-
-```
-
-
-```{r fig.height=4, fig.width=10}
-library(rstatix) 
-library(lme4)
-library(emmeans)
-modelo <- lmer(valor_log ~ grupo_n * dia + (1|animal_id), 
-               data = table %>% 
-                 filter(!grupo %in% c("QB", "PBS")))
-
-
-anova_summary <- 
-  anova(modelo)
-
-# Comparar dias dentro de cada grupo
-post_hoc <- emmeans(modelo, pairwise ~ dia | grupo_n, adjust = "tukey")
-
-
-# Transformar em uma tabela formatada (estilo rstatix)
-stat.test_misto <- as_tibble(post_hoc$contrasts) %>%
-  # Limpa o nome do dia se ele vier como "dia 14"
-  mutate(contrast = str_remove_all(contrast, "dia")) %>% 
-  separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
-  mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>%
-  mutate(
-    p.adj.signif = case_when(
-      p.value <= 0.001 ~ "***",
-      p.value <= 0.01  ~ "**",
-      p.value <= 0.05  ~ "*",
-      TRUE             ~ "ns"
-    )
-  ) %>%
-  # Importante: para stat_pvalue_manual, xmin e xmax devem ser as categorias do eixo X (dia)
-  mutate(
-    xmin = group1,
-    xmax = group2,
-    y.position = max(table$valor_log, na.rm = TRUE) + 0.2
-  ) %>%
-  filter(p.adj.signif != "ns") %>% 
-  mutate(
-    y.position = max(table$valor_log, na.rm = TRUE) +
-                 0.2 + 0.15 * row_number()
-  ) 
-
-stat.test_misto
-
-
-# Calcular Effect Size 
-effect_size <- table %>%
-  group_by(grupo_n) %>%
-  filter(!grupo %in% c("QB", "PBS")) %>% 
-  cohens_d(valor_log ~ dia, var.equal = FALSE) %>% 
-  mutate(effsize = round(effsize, 1)) 
-
-# Join final
-stat.test_misto_final <- stat.test_misto %>% 
-  # inner_join(effect_size, by = c("grupo_n", "group1", "group2")) %>% 
-  mutate(grupo_n = fct_relevel(grupo_n, c(table %>% 
-                                 arrange(grupo, dose) %>% 
-                                 mutate(grupo_n = fct_inorder(grupo_n)) %>% 
-                                 pull(grupo_n) %>% 
-                                 levels()))
-         )
-```
-
-
-```{r fig.height=4, fig.width=10}
-plot_group = table %>% 
-  mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
-  arrange(grupo, dose) %>% 
-  mutate(
-    grupo_n = fct_inorder(grupo_n)
-  ) %>% 
-  ggplot(aes(x = dia, y = valor_log)) +   # 🔑 define as escalas
-  
-  facet_nested_wrap(
-    ~grupo_n, 
-    # space  = "free_x", 
-    scales = "free_x", 
-    axes   = "all",
-    nrow = 1
-  ) +
-  
-   # 1. Camadas de dados: Defina o aes(x, y) dentro de cada uma
-  stat_summary(aes(x = dia, y = valor_log, fill = grupo),
-               geom = "crossbar", 
-               fun.data = mean_cl_normal, 
-               position = "dodge", 
-               width=.2) +
-  stat_summary(aes(x = dia, y = valor_log),
-               fun = mean, 
-               geom="point", 
-               shape=95, 
-               size=5, 
-               color="black",
-               stroke = 5) +
-  geom_line(aes(group = animal_id),
-            position = position_dodge(),
-            color = "gray50",
-            size = 0.5,
-            alpha = 0.5) +
-  geom_jitter(aes(x = dia, y = valor_log),
-            color = "black",
-            size = 1.5,
-            stroke = 1,
-            pch = 1,
-            position = position_dodge()) +
-
-  stat_pvalue_manual(
-    data = stat.test_misto_final,
-    label = "p.adj.signif", 
-    hide.ns = TRUE,
-    xmin = "xmin", 
-    xmax = "xmax",
-    y.position = "y.position",
-    bracket.size = 0,
-    tip.length = 0,
-    inherit.aes = FALSE
-  ) +
-  theme_minimal() +
-  theme(text = element_text(size = 10,
-                            color = "black"),
-        plot.caption = element_text(size = 10, 
-                                    color = "black",
-                                    hjust = 0.5),
-        legend.position = "top",
-        legend.margin=margin(0,0,0,0),
-          legend.box.margin=margin(0,0,-10,0),
-          legend.text = element_text(size = 10, hjust = 0),
-          legend.title = element_text(size = 10),
-        axis.text.x = element_text(size = 10,
-                                   hjust = 0.5,
-                                   color = "black"),
-        axis.text.y = element_text(size = 10,
-                                   color = "black"),
-        strip.text = element_text(size = 10,
-                                  color = "black"),
-        strip.text.y = element_text(size = 10,
-                                  color = "black",
-                                  angle = 0),
-        axis.line.x = element_line(color = "black",
-                                   size = 1),
-        ggh4x.axis.nestline = element_line(linetype =1), 
-        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
-        axis.line.y = element_line(color = "black",
-                                   size = 1),
-        axis.ticks.x = element_line(color = "black",
-                                  size = 1),
-        panel.grid = element_line(linetype = 2,
-                                  color = "gray90")) +
-  scale_fill_manual(values = c("PBS" = "white",
-                             "ED-III" = "#9f9fed",
-                             "QB" = "#adf7b6",
-                             "Vac" = "#a9def9",
-                             "Alum" = "#ff5d8f"))+
-    labs(fill = "Grupo",
-       color = "Grupo",
-       x = "",
-       y = "log10(OD50)") 
-
-plot_group
-
-# plot_group %>%
-# ggsave(filename = here("Gráficos diversos", "ELISA_OD50_ByGroup_Kruskal.png"),
-#        width = 10,
-#        height = 4,
-#        bg = "white")
-```
-
-Unir plots
-```{r fig.height=10, fig.width=12}
-plot_united = (
-  (plot + theme(plot.title = element_blank(),
-                      plot.subtitle = element_blank())) / 
-  plot_spacer() /
-  (plot_group + theme(plot.title = element_blank(),
-                      plot.subtitle = element_blank())) 
-  )+ 
-  plot_layout(guides = "collect", axes = "collect",
-              heights = c(0.6, -0.05, 0.4)) +
-  plot_annotation(
-    theme = theme(
-      legend.position = "top",
-      legend.margin = margin(0, 0, 0, 0),
-      legend.box.margin = margin(0, 0, -10, 0),
-      legend.text = element_text(size = 10, hjust = 0),
-      legend.title = element_text(size = 10),
-      panel.spacing = unit(0, "lines"),
-      plot.margin = margin(0, 0, 0, 0, unit = "cm"),
-      plot.title = element_text(hjust = 0, margin = margin(l = 30,
-                                                           b = -10)),
-      plot.subtitle = element_text(hjust = 0, margin = margin(l = 30))
-    ),
-    title = "Citometria - All vs. All\n",
-    subtitle = "Welch's ANOVA, Games-Howell post-hoc test. \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01.\nBlack thick lines correspond to the mean."
-  )
-
-plot_united
-
-plot_united %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_ByGroup_ByDay.png"),
-       width = 12,
-       height = 10,
+plot %>%
+ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_ByGroup_Welch.png"),
+       width = 10,
+       height = 4,
        bg = "white")
+
 ```
+
 
 
 
