@@ -1223,7 +1223,7 @@ table
 
 ## ANOVA e posthoc
 ### Teste de normalidade
-```{r fig.height=10, fig.width=5}
+```{r fig.height=5, fig.width=5}
 #Teste de Shapiro-Wilk
 ## p<0.05: Não-normal
 ## p>0.05: Normal
@@ -1290,9 +1290,9 @@ ggplot(aes(sample = valor_log,
 qq_plot
 
 qq_plot %>%
-ggsave(filename = here("Gráficos diversos", "ELISA_OD50_IgG_qqplot.png"),
+ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_subtypes_qqplot.png"),
        width = 5,
-       height = 10,
+       height = 5,
        bg = "white")
 
 
@@ -1448,7 +1448,7 @@ plot = table %>%
        color = "Grupo",
        x = "",
        y = "Log10(OD50)",
-       title = "ELISA OD50% - All vs. All ") 
+       title = "ELISA OD50% IgG subtypes - All vs. All ") 
 
 plot
 
