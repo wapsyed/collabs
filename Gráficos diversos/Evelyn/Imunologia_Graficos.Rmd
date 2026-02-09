@@ -23,6 +23,8 @@ library(ggforce)
 library(lme4)
 library(lmeTest) # Adiciona p-values ao lme4
 library(emmeans)
+library(ssize.fdr)
+library(ggh4x)
 # install.packages("paletteer")
 ```
 
@@ -62,8 +64,7 @@ pwr.t.test(
   type = "two.sample"  # Teste de duas amostras
 )
 
-install.packages("ssize.fdr")
-library(ssize.fdr)
+
 
 # Parâmetros
 mean_diff <- 1    # Diferença esperada entre os grupos
@@ -154,7 +155,7 @@ citometria_clean = citometria_dezembro %>%
   group_by(teste, marcador, grupo) %>%
   mutate(animal_id = paste0("M.", row_number())) %>%
   #Add summary statistics
-  group_by(teste, marcador, grupo) %>% 
+  group_by(teste, marcador, grupo, dose) %>% 
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(grupo_n = paste0(condicao, " n=", n),
@@ -171,6 +172,10 @@ citometria_clean %>%
 ```
 ## Distribuições
 ```{r fig.height=8, fig.width=10}
+
+citometria_clean = 
+  read_csv(file = here("Gráficos diversos", "Evelyn", "citometria_clean.csv"))
+
 #Identificar outliers
 citometria_clean %>% 
   group_by(grupo, teste, marcador) %>% 
@@ -683,7 +688,7 @@ table = ELISA_OD50 %>%
                              "25μg",
                              "50μg")) %>% 
   #Add summary statistics
-  group_by(teste, dia, grupo) %>% 
+  group_by(teste, dia, grupo, dose) %>% 
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(grupo_n = paste0(condicao, " n=", n),
@@ -783,7 +788,7 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_qqplot.png"),
 library(rstatix) 
 anova_summary <- table %>%
  filter(!grupo %in% c("QB", "PBS")) %>% 
-  group_by(dia) %>%
+  group_by(dia, dose) %>%
   welch_anova_test(valor_log ~ grupo_n)
 
 stat.test_dia = table %>% 
@@ -1204,7 +1209,7 @@ mutate(
                              "25μg",
                              "50μg")) %>% 
   #Add summary statistics
-  group_by(teste, grupo) %>% 
+  group_by(teste, grupo, dose) %>% 
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(grupo_n = paste0(condicao, " n=", n),
