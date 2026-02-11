@@ -25,6 +25,8 @@ library(lmeTest) # Adiciona p-values ao lme4
 library(emmeans)
 library(ssize.fdr)
 library(ggh4x)
+library(broom)
+library(effectsize)
 # install.packages("paletteer")
 ```
 
@@ -101,17 +103,50 @@ pwr.anova.test(
 # Citometria
 ```{r}
 #Importar
-citometria_dezembro <- read_excel(here("Gráficos diversos", "Evelyn", "citometria_evelyn_29-12-25.xlsx"))
+citometria_dezembro <- read_excel(here("Gráficos diversos", "Evelyn", "citometria.xlsx"),
+                                  col_names = F) %>% 
+  filter(!`...3` == "Animal")
+
+citometria_long = 
+  #Dividir tabela em experimentos
+  bind_rows(
+  #Exp 1
+  citometria_dezembro %>% 
+  filter(`...1` == "Exp1") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp1,Teste, Marcador),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp1) %>% 
+  clean_names(),
+  
+  #Exp 2
+  citometria_dezembro %>% 
+  filter(`...1` == "Exp2") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp2, Teste, Marcador),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp2) %>% 
+  clean_names(),
+  
+  #Exp 3
+  citometria_dezembro %>% 
+  filter(`...1` == "Exp3") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp3,Teste, Marcador),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp3) %>% 
+  clean_names()
+  )
 
 #Padronizar tabela
 #Pivotar para formato longo
-citometria_clean = citometria_dezembro %>% 
-  #Retirar linha de animal, para add depois
-  filter(Marcador != "Animal") %>% 
-  pivot_longer(cols = -c("Teste", "Marcador"),
-               names_to = "Condicao",
-               values_to = "valor") %>% 
-  clean_names() %>% 
+citometria_clean = citometria_long %>%  
   #Add animais
   group_by(teste, marcador) %>%
   mutate(animal_id = paste0("M.", row_number())) %>%
@@ -159,12 +194,14 @@ citometria_clean = citometria_dezembro %>%
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(grupo_n = paste0(condicao, " n=", n),
-         dose_n = paste0(dose, "\nn=", n),
-         experimento = "1-2-3") %>% 
+         dose_n = paste0(dose, "\nn=", n)) %>% 
   arrange(grupo, dose) %>% 
-  mutate(dose_n = fct_inorder(dose_n))
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo = fct_inorder(grupo)) 
 
 citometria_clean
+
+citometria_clean$grupo
 
 citometria_clean %>% 
   write_csv(file = here("Gráficos diversos", "Evelyn", "citometria_clean.csv"))
@@ -172,9 +209,6 @@ citometria_clean %>%
 ```
 ## Distribuições
 ```{r fig.height=8, fig.width=10}
-
-citometria_clean = 
-  read_csv(file = here("Gráficos diversos", "Evelyn", "citometria_clean.csv"))
 
 #Identificar outliers
 citometria_clean %>% 
@@ -189,7 +223,7 @@ citometria_clean %>%
   mutate(homo = ifelse(p > 0.05, "Yes", "No"))
   
 
-
+#Plotar
 citometria_clean_boxplots = citometria_clean %>% 
   ggplot() +
   aes(x = interaction(dose_n, grupo),
@@ -209,7 +243,8 @@ citometria_clean_boxplots = citometria_clean %>%
   geom_sina(size = 1.5,
              stroke = 1,
              pch = 1,
-             alpha = 1) +
+             alpha = 1,
+            aes(color = experimento)) +
   theme_minimal() +
   labs(title = "Distribuição dos Valores por Grupo, Citometria",
        x = "",
@@ -240,27 +275,33 @@ citometria_clean_boxplots = citometria_clean %>%
                                   color = "black",
                                   angle = 0),
         axis.line = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
         axis.ticks.x = element_line(color = "black",
                                   size = 1),
-        panel.grid = element_line(linetype = 2,
+        panel.grid.major.y   = element_line(linetype = 2,
                                   color = "gray90"),
+        panel.grid.major.x = element_blank(),
         ggh4x.axis.nestline = element_line(linetype =1)) +
   scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
+  scale_color_manual(values = c("Exp1" = "#a9def9",
+                             "Exp2" = "#9f9fed",
+                             "Exp3" = "#ff5d8f"))+
   guides(fill = guide_legend(nrow = 1),
     x = "axis_nested", 
     fill = "legend_group")
 
 citometria_clean_boxplots
-citometria_clean_boxplots %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_CD4_CD8.png"),
-       width = 10,
-       height = 8,
-       bg = "white")
+
+
+# citometria_clean_boxplots %>%
+# ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_CD4_CD8.png"),
+#        width = 10,
+#        height = 8,
+#        bg = "white")
 
 ```
 
@@ -343,42 +384,99 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_qqplot.png"),
 ## ANOVA e posthoc
 
 ```{r fig.height=7, fig.width=10}
-#ANOVA de Welch
-anova.res <- citometria_clean %>%
-  group_by(teste, marcador) %>%
-  welch_anova_test(valor ~ grupo_n)
 
-anova.res
 ```
 
 cd4
 ```{r fig.height=8, fig.width=12}
+library(nlme) # Para modelos com variâncias heterogêneas
+
+anova.res <- citometria_clean %>%
+  group_by(teste, marcador) %>%
+  group_modify(~ {
+    # gls permite pesos (weights) para variâncias diferentes por grupo
+    # O + experimento faz o ajuste do efeito de lote
+    model <- gls(valor ~ grupo_n + experimento, 
+                 data = .x, 
+                 weights = varIdent(form = ~ 1 | grupo_n),
+                 na.action = na.omit)
+    
+    # Extrai a ANOVA do modelo
+    as_tibble(anova(model)) %>%
+      slice(2) # Pega a linha do grupo_n
+  })
+
+anova.res
 
 # 1. Preparação da tabela de estatística
+#ANOVA de Welch
+# anova.res <- citometria_clean %>%
+#   group_by(teste, marcador) %>%
+#   welch_anova_test(valor ~ grupo_n)
+# stat.test_cd4 <- citometria_clean %>%
+#   filter(teste == "CD4") %>% 
+#   group_by(marcador) %>%
+#   games_howell_test(valor ~ grupo_n) %>% 
+#   mutate(
+#     p.adj.signif = case_when(
+#       p.adj <= 0.001 ~ "***",
+#       p.adj <= 0.01  ~ "**",
+#       p.adj <= 0.05  ~ "*",
+#       TRUE           ~ "ns")) %>% 
+#   group_by(marcador) %>%
+#   add_xy_position(x = "grupo_n", step.increase = 0, scales = "free") %>% 
+#   ungroup()
+
+# 2. Calcular Effect Size
+# effect_size_cd4 <- citometria_clean %>%
+#   filter(teste == "CD4") %>% 
+#   group_by(marcador) %>%
+#   cohens_d(valor ~ grupo_n, var.equal = FALSE) %>% 
+#   mutate(effsize = round(effsize, 1))
+
+# # Join final
+# stat.test_cd4_final <- stat.test_cd4 %>% 
+#   inner_join(effect_size_cd4, by = c("marcador", "group1", "group2")) 
+
+#Utilizando modelos mistos com ajuste por lote de experimentos
 stat.test_cd4 <- citometria_clean %>%
-  filter(teste == "CD4") %>% 
-  group_by(marcador) %>%
-  games_howell_test(valor ~ grupo_n) %>% 
-  mutate(
-    p.adj.signif = case_when(
-      p.adj <= 0.001 ~ "***",
-      p.adj <= 0.01  ~ "**",
-      p.adj <= 0.05  ~ "*",
-      TRUE           ~ "ns")) %>% 
-  group_by(marcador) %>%
-  add_xy_position(x = "grupo_n", step.increase = 0, scales = "free") %>% 
-  ungroup()
+  filter(teste == "CD4") %>%
+  group_by(marcador) %>% 
+  group_modify(~ {
+    # 1. Ajuste do modelo
+    mod <- lmer(valor ~ grupo_n + (1|experimento), data = .x)
+    
+    # 2. Obter contrastes e t.ratio
+    res <- emmeans(mod, pairwise ~ grupo_n, adjust = "tukey")$contrasts %>%
+      as_tibble()
+    
+    # 3. Calcular o d de Cohen usando o t e o df do modelo
+    d_values <- t_to_d(res$t.ratio, res$df)
+    
+    res %>% mutate(d_cohen = d_values$d)
+  }) %>%
+  # Ajustando nomes para que o ggplot/ggpubr entenda
+  mutate(contrast = str_remove_all(contrast, "[()]")) %>% 
+  separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
+  rename(p.adj = p.value) %>%
+  mutate(p.adj.signif = case_when(
+    p.adj <= 0.001 ~ "***",
+    p.adj <= 0.01  ~ "**",
+    p.adj <= 0.05  ~ "*",
+    TRUE           ~ "ns",
+  )) %>% 
+  
+  #Add posições
+  add_xy_position(
+    data = citometria_clean %>% filter(teste == "CD4"), 
+    x = "grupo_n", 
+    formula = valor ~ grupo_n,
+    step.increase = 0, 
+    scales = "free"
+  ) %>%
+  ungroup() %>% 
+  mutate(label_full = paste0("d=", round(d_cohen, 1), p.adj.signif))
 
-# 2. Calcular Effect Size 
-effect_size_cd4 <- citometria_clean %>%
-  filter(teste == "CD4") %>% 
-  group_by(marcador) %>%
-  cohens_d(valor ~ grupo_n, var.equal = FALSE) %>% 
-  mutate(effsize = round(effsize, 1))
-
-# Join final
-stat.test_cd4_final <- stat.test_cd4 %>% 
-  inner_join(effect_size_cd4, by = c("marcador", "group1", "group2")) 
 
 #PLOT
 citometria_plot_CD4 = citometria_clean %>%
@@ -389,11 +487,6 @@ citometria_plot_CD4 = citometria_clean %>%
   ggplot() +
   aes(x = grupo_n,
       y = valor) +
-  # geom_boxplot(
-  #   aes(fill = grupo),
-  #     outlier.shape = NA, 
-  #     width = 0.8,
-  #     alpha = 1) +
   facet_nested_wrap(~teste+marcador, 
                     scales = "free",
              axes = "all",
@@ -408,10 +501,10 @@ citometria_plot_CD4 = citometria_clean %>%
                stroke = 5,
                alpha = 1,
                show.legend = F) +
-    geom_sina(color = "black",
-              size = 1.5, #or geom_jitter(position = position_dodge(width = 0.1))
+    geom_sina(aes(shape = experimento),
+              size = 1.5, 
+              color = "black",
              stroke = 1,
-             pch = 1,
              alpha = 1) +
   theme_minimal() +
   theme(text = element_text(size = 10,
@@ -443,19 +536,34 @@ citometria_plot_CD4 = citometria_clean %>%
         axis.ticks.x = element_line(color = "black",
                                   size = 1),
         panel.grid = element_line(linetype = 2,
-                                  color = "gray90")) +
-  stat_pvalue_manual(data = stat.test_cd4_final,
-    label = "p.adj.signif", 
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
+  # stat_pvalue_manual(data = stat.test_cd4,
+  #   label = "label_full",
+  #   hide.ns = TRUE,
+  #   bracket.size = 0.3,
+  #   tip.length = 0.0,
+  #   step.increase = 0.05,
+  #   vjust = 0.5,
+  #   size = 2.5,
+  # ) +
+stat_pvalue_manual(
+    data = stat.test_cd4, 
+    label = "label_full",    # <--- APENAS o nome da coluna entre aspas
     hide.ns = TRUE, 
     bracket.size = 0.3, 
-    tip.length = 0.0,
-    step.increase = 0.05,
+    tip.length = 0,
+    step.increase = 0.05,    # Espaço entre barras para não encavalar
+    size = 2.5
   ) +
    scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
+  scale_shape_manual(values = c("Exp1" = 1,
+                             "Exp2" = 0,
+                             "Exp3" = 2))+
     labs(fill = "Grupo",
        x = "",
        y = "MFI",
@@ -467,42 +575,77 @@ citometria_plot_CD4 = citometria_clean %>%
 citometria_plot_CD4
 
 
-# citometria_plot_CD4 %>%
-# ggsave(filename = here("Gráficos diversos", "Citometria_AllvsAll_Welch_GamesHowell_CD4_CD8.png"),
-#        width = 10,
-#        height = 10,
-#        bg = "white")
-
-
 ```
+
+
 CD8
-```{r fig.height=8, fig.width=10}
+```{r fig.height=8, fig.width=12}
 
 # 1. Preparação da tabela de estatística
-stat.test_CD8 <- citometria_clean %>%
-  filter(teste == "CD8") %>% 
-  group_by(marcador) %>%
-  games_howell_test(valor ~ grupo_n) %>% 
-  mutate(
-    p.adj.signif = case_when(
-      p.adj <= 0.001 ~ "***",
-      p.adj <= 0.01  ~ "**",
-      p.adj <= 0.05  ~ "*",
-      TRUE           ~ "ns")) %>% 
-  group_by(marcador) %>%
-  add_xy_position(x = "grupo_n", step.increase = 0, scales = "free") %>% 
-  ungroup()
+# stat.test_cd8 <- citometria_clean %>%
+#   filter(teste == "CD8") %>% 
+#   group_by(marcador) %>%
+#   games_howell_test(valor ~ grupo_n) %>% 
+#   mutate(
+#     p.adj.signif = case_when(
+#       p.adj <= 0.001 ~ "***",
+#       p.adj <= 0.01  ~ "**",
+#       p.adj <= 0.05  ~ "*",
+#       TRUE           ~ "ns")) %>% 
+#   group_by(marcador) %>%
+#   add_xy_position(x = "grupo_n", step.increase = 0, scales = "free") %>% 
+#   ungroup()
 
-# 2. Calcular Effect Size 
-effect_size_CD8 <- citometria_clean %>%
-  filter(teste == "CD8") %>% 
-  group_by(marcador) %>%
-  cohens_d(valor ~ grupo_n, var.equal = FALSE) %>% 
-  mutate(effsize = round(effsize, 1))
+# 2. Calcular Effect Size
+# effect_size_cd8 <- citometria_clean %>%
+#   filter(teste == "CD8") %>% 
+#   group_by(marcador) %>%
+#   cohens_d(valor ~ grupo_n, var.equal = FALSE) %>% 
+#   mutate(effsize = round(effsize, 1))
 
-# Join final
-stat.test_CD8_final <- stat.test_CD8 %>% 
-  inner_join(effect_size_CD8, by = c("marcador", "group1", "group2")) 
+# # Join final
+# stat.test_cd8_final <- stat.test_cd8 %>% 
+#   inner_join(effect_size_cd8, by = c("marcador", "group1", "group2")) 
+
+#Utilizando modelos mistos com ajuste por lote de experimentos
+stat.test_cd8 <- citometria_clean %>%
+  filter(teste == "CD8") %>%
+  group_by(marcador) %>% 
+  group_modify(~ {
+    # 1. Ajuste do modelo
+    mod <- lmer(valor ~ grupo_n + (1|experimento), data = .x)
+    
+    # 2. Obter contrastes e t.ratio
+    res <- emmeans(mod, pairwise ~ grupo_n, adjust = "tukey")$contrasts %>%
+      as_tibble()
+    
+    # 3. Calcular o d de Cohen usando o t e o df do modelo
+    d_values <- t_to_d(res$t.ratio, res$df)
+    
+    res %>% mutate(d_cohen = d_values$d)
+  }) %>%
+  # Ajustando nomes para que o ggplot/ggpubr entenda
+  mutate(contrast = str_remove_all(contrast, "[()]")) %>% 
+  separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
+  rename(p.adj = p.value) %>%
+  mutate(p.adj.signif = case_when(
+    p.adj <= 0.001 ~ "***",
+    p.adj <= 0.01  ~ "**",
+    p.adj <= 0.05  ~ "*",
+    TRUE           ~ "ns",
+  )) %>% 
+  #Add posições
+  add_xy_position(
+    data = citometria_clean %>% filter(teste == "CD8"), 
+    x = "grupo_n", 
+    formula = valor ~ grupo_n,
+    step.increase = 0, 
+    scales = "free"
+  ) %>%
+  ungroup() %>% 
+  mutate(label_full = paste0("d=", round(d_cohen, 1), p.adj.signif))
+
+
 
 #PLOT
 citometria_plot_CD8 = citometria_clean %>%
@@ -523,21 +666,24 @@ citometria_plot_CD8 = citometria_clean %>%
              axes = "all",
              ) +
   stat_summary(aes(fill = grupo),
-               geom = "crossbar", fun.data = mean_cl_normal, position = "dodge", width=.2)+
+               geom = "crossbar", 
+               fun.data = mean_cl_normal, 
+               position = "dodge", width=.2)+
   stat_summary(fun.y= mean, 
                geom="point", 
                shape=95, 
                size=5, 
                color="black",
                stroke = 5,
-               alpha = 1) +
-    geom_sina(color = "black",
-              size = 1.5, #or geom_jitter(position = position_dodge(width = 0.1))
+               alpha = 1,
+               show.legend = F) +
+    geom_sina(aes(shape = experimento),
+              size = 1.5, 
+              color = "black",
              stroke = 1,
-             pch = 1,
              alpha = 1) +
   theme_minimal() +
-    theme(text = element_text(size = 10,
+  theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
                                     color = "black",
@@ -566,25 +712,31 @@ citometria_plot_CD8 = citometria_clean %>%
         axis.ticks.x = element_line(color = "black",
                                   size = 1),
         panel.grid = element_line(linetype = 2,
-                                  color = "gray90")) +
-  stat_pvalue_manual(data = stat.test_CD8_final,
-    label = "p.adj.signif", 
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
+  stat_pvalue_manual(
+    data = stat.test_cd4, 
+    label = "label_full",
     hide.ns = TRUE, 
     bracket.size = 0.3, 
-    tip.length = 0.0,
-    step.increase = 0.05,
+    tip.length = 0,
+    step.increase = 0.05, 
+    size = 2.5
   ) +
    scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
+  scale_shape_manual(values = c("Exp1" = 1,
+                             "Exp2" = 0,
+                             "Exp3" = 2))+
     labs(fill = "Grupo",
        x = "",
        y = "MFI",
-       title = "Citometria - All vs. All",
+       title = "Citometria - CD4 - All vs. All",
        subtitle =  "Welch's ANOVA, Games-Howell post-hoc test. \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01. Red lines correspond to the mean.",
-       # caption = get_pwc_label(stat.test_CD8_final)
+       # caption = get_pwc_label(stat.test_cd4_final)
        ) 
 
 citometria_plot_CD8
@@ -614,13 +766,13 @@ citometria_plot_CD4_CD8_test = ((citometria_plot_CD4 + theme(plot.title = elemen
       plot.subtitle = element_text(hjust = 0, margin = margin(l = 30))
     ),
     title = "Citometria - All vs. All\n",
-    subtitle = "Welch's ANOVA, Games-Howell post-hoc test. \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01.\nBlack thick lines correspond to the mean."
+    subtitle = "ANOVA baseado no modelo linear misto, ajustado por efeito do lote de experimento, com o método de tukey para correção de p-valores. \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01.\nBlack thick lines correspond to the mean."
   )
 
 citometria_plot_CD4_CD8_test
 
 citometria_plot_CD4_CD8_test %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_AllvsAll_Welch_GamesHowell_CD4_CD8.png"),
+ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_AllvsAll_LMM_CD4_CD8.png"),
        width = 12,
        height = 10,
        bg = "white")
