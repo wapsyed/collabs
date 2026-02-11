@@ -789,20 +789,55 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_AllvsAll_LMM_
 
 # ELISA OD50
 ```{r fig.height=5, fig.width=10}
-ELISA_OD50 <- read_excel(here("Gráficos diversos", "Evelyn", "ELISA_OD50.xlsx"))
+ELISA_OD50 <- read_excel(here("Gráficos diversos", "Evelyn", "ELISA_OD50.xlsx"), col_names = F) %>% 
+  filter(!`...2` == "Animal")
 
-table = ELISA_OD50 %>% 
-  filter(dia != "Animal") %>% 
-  pivot_longer(cols = -dia,
-               values_to = "valor",
-               names_to = "condicao") %>% 
+ELISA_OD50_long = 
+  #Dividir tabela em experimentos
+  bind_rows(
+  #Exp 1
+  ELISA_OD50 %>% 
+  filter(`...1` == "Exp1") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp1,dia),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp1) %>% 
+  clean_names(),
+  
+  #Exp 2
+  ELISA_OD50 %>% 
+  filter(`...1` == "Exp2") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp2, dia),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp2) %>% 
+  clean_names(),
+  
+  #Exp 3
+  ELISA_OD50 %>% 
+  filter(`...1` == "Exp3") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp3, dia),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp3) %>% 
+  clean_names()
+  )
+
+table = ELISA_OD50_long %>% 
   mutate(teste = "ELISA OD50") %>% 
   group_by(teste, dia) %>%
   separate(condicao, into = c("condicao", "del"), "\\...") %>% 
   select(-del) %>% 
   mutate(animal_id = paste0("M.", row_number())) %>% 
   ungroup() %>% 
-  mutate(dia = as.factor(dia),
+  mutate(dia = round(as.numeric(dia), 0),
+         dia = as.factor(dia),
          #substituir virgula por ponto  
          valor = str_replace(valor, ",", ".") %>% 
            str_replace(", ", ".") %>% 
@@ -844,10 +879,10 @@ table = ELISA_OD50 %>%
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(grupo_n = paste0(condicao, " n=", n),
-         dose_n = paste0(dose, "\nn=", n),
-         experimento = "1-2-3") %>% 
+         dose_n = paste0(dose, "\nn=", n)) %>% 
   arrange(grupo, dose) %>% 
-  mutate(dose_n = fct_inorder(dose_n))
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo_n = fct_inorder(grupo_n))
 
 table
 
@@ -938,54 +973,94 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_qqplot.png"),
 #### Teste de diferenças
 ```{r fig.height=8, fig.width=12}
 library(rstatix) 
-anova_summary <- table %>%
- filter(!grupo %in% c("QB", "PBS")) %>% 
-  group_by(dia, dose) %>%
-  welch_anova_test(valor_log ~ grupo_n)
+# anova_summary <- table %>%
+#  filter(!grupo %in% c("QB", "PBS")) %>% 
+#   group_by(dia, dose) %>%
+#   welch_anova_test(valor_log ~ grupo_n)
+# 
+# stat.test_dia = table %>% 
+#   filter(!grupo %in% c("QB", "PBS")) %>%
+#     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
+#          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
+#   group_by(dia) %>%
+#   games_howell_test(valor_log ~ grupo_n, 
+#             detailed = T) %>% 
+#   group_by(dia) %>%
+#   add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>% 
+#   ungroup() %>% 
+#   mutate(p.adj.signif = case_when(
+#       p.adj <= 0.01 ~ "***",       # p <= 0.01
+#       p.adj <= 0.05 ~ "**",        # 0.01 < p <= 0.05
+#       p.adj <= 0.10 ~ "*",         # 0.05 < p <= 0.10
+#       TRUE ~ "ns"                        # p > 0.10
+#     )
+#   ) %>% 
+#   group_by(dia) %>% 
+#   mutate(
+#     xmin = group1,
+#     xmax = group2,
+#     y.position = max(table$valor_log, na.rm = TRUE) + 0.2 ) %>%
+#   ungroup() 
+#     # filter(!p.adj.signif %in% c("ns")) %>% 
+#     # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1) 
+# 
+# 
+# # 2. Calcular Effect Size 
+# effect_size <- table %>%
+#   filter(!grupo %in% c("QB", "PBS")) %>% 
+#     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
+#          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
+#   group_by(dia) %>%
+#   cohens_d(valor_log ~ grupo_n, var.equal = FALSE) %>% 
+#   mutate(effsize = round(effsize, 1))
+# 
+# # Join final
+# stat.test<- stat.test_dia %>% 
+#   inner_join(effect_size, by = c("dia", "group1", "group2"))
 
-stat.test_dia = table %>% 
-  filter(!grupo %in% c("QB", "PBS")) %>%
-    mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
-         grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-  group_by(dia) %>%
-  games_howell_test(valor_log ~ grupo_n, 
-            detailed = T) %>% 
-  group_by(dia) %>%
-  add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>% 
-  ungroup() %>% 
-  mutate(p.adj.signif = case_when(
-      p.adj <= 0.01 ~ "***",       # p <= 0.01
-      p.adj <= 0.05 ~ "**",        # 0.01 < p <= 0.05
-      p.adj <= 0.10 ~ "*",         # 0.05 < p <= 0.10
-      TRUE ~ "ns"                        # p > 0.10
-    )
-  ) %>% 
+#Utilizando modelos mistos com ajuste por lote de experimentos
+stat.test <- table %>%
   group_by(dia) %>% 
-  mutate(
-    xmin = group1,
-    xmax = group2,
-    y.position = max(table$valor_log, na.rm = TRUE) + 0.2 ) %>%
-  ungroup() 
-    # filter(!p.adj.signif %in% c("ns")) %>% 
-    # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1) 
+  group_modify(~ {
+    # 1. Ajuste do modelo
+    mod <- lmer(valor_log ~ grupo_n + (1|experimento), data = .x)
+    
+    # 2. Obter contrastes e t.ratio
+    res <- emmeans(mod, pairwise ~ grupo_n, adjust = "tukey")$contrasts %>%
+      as_tibble()
+    
+    # 3. Calcular o d de Cohen usando o t e o df do modelo
+    d_values <- t_to_d(res$t.ratio, res$df)
+    
+    res %>% mutate(d_cohen = d_values$d)
+  }) %>%
+  # Ajustando nomes para que o ggplot/ggpubr entenda
+  mutate(contrast = str_remove_all(contrast, "[()]")) %>% 
+  separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
+  rename(p.adj = p.value) %>%
+  mutate(p.adj.signif = case_when(
+    p.adj <= 0.001 ~ "***",
+    p.adj <= 0.01  ~ "**",
+    p.adj <= 0.05  ~ "*",
+    TRUE           ~ "ns",
+  )) %>% 
+  group_by(dia) %>% 
+  #Add posições
+  add_xy_position(
+    data = table, 
+    x = "grupo_n", 
+    formula = valor_log ~ grupo_n,
+    step.increase = 0, 
+    scales = "free"
+  ) %>%
+  ungroup() %>% 
+  mutate(label_full = paste0("d=", round(d_cohen, 1), p.adj.signif)) %>% 
+  mutate(group1 = str_replace_all(group1, " ", "\n"),
+         group2 = str_replace_all(group2, " ", "\n"),) %>% 
+    filter(!str_detect(group1,"QB|PBS"),
+         !str_detect(group2,"QB|PBS")) 
 
-
-# 2. Calcular Effect Size 
-effect_size <- table %>%
-  filter(!grupo %in% c("QB", "PBS")) %>% 
-    mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
-         grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-  group_by(dia) %>%
-  cohens_d(valor_log ~ grupo_n, var.equal = FALSE) %>% 
-  mutate(effsize = round(effsize, 1))
-
-# Join final
-stat.test<- stat.test_dia %>% 
-  inner_join(effect_size, by = c("dia", "group1", "group2"))
-```
-
-
-```{r fig.height=8, fig.width=12}
+#Plot
 plot = table %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
@@ -1018,26 +1093,21 @@ plot = table %>%
                alpha = 1,
                show.legend = F) +
   geom_sina(color = "black",
-              size = 1.5, #or geom_jitter(position = position_dodge(width = 0.1))
+              size = 1.5,
              stroke = 1,
              pch = 1,
              alpha = 1) +
   stat_pvalue_manual(data = stat.test,
-    label = "p.adj.signif", 
+                     xmin = "group1", 
+                     xmax = "group2",
+    label = "label_full", 
     hide.ns = TRUE, 
     bracket.size = 0.3, 
     tip.length = 0.0,
+    size = 2.5,
+    vjust = 0.5,
     step.increase = 0.05,
-    # vjust = 0.7
   ) +
-
-# geom_violin(color = "gray10",
-  #             fill = NA,
-  #             alpha = 1, 
-  #             width = 1) +
-  # geom_boxplot(outlier.shape = NA,
-  #              alpha = 1, 
-  #              width = 0.5) +
   
   theme_minimal() +
   theme(text = element_text(size = 10,
@@ -1069,23 +1139,20 @@ plot = table %>%
         axis.ticks.x = element_line(color = "black",
                                   size = 1),
         panel.grid = element_line(linetype = 2,
-                                  color = "gray90")) +
-  
-  # # scale_y_continuous(transform = "log10", 
-  # #                    labels = scales::label_log(base = 10),
-  # #                    breaks = scales::breaks_log(n = 6)) +
-  # annotation_logticks(sides = "l") +
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
   scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
-                             "Alum" = "#ff5d8f"))+
+                             "Alum" = "#ff5d8f")) +
+    scale_shape_manual(values = c("Exp1" = 1,
+                             "Exp2" = 0,
+                             "Exp3" = 2))+
     labs(fill = "Grupo",
        color = "Grupo",
        x = "",
-       y = "OD50",
-       title = "ELISA OD50% - All vs. All ",
-       subtitle =  "Kruskal-Wallis test (Benjamini-Hochberg correction). \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01. Black lines correspond to the mean.") 
+       y = "OD50") 
 
 plot
 
@@ -1095,92 +1162,130 @@ plot
 
 
 #### Teste de diferenças
-```{r fig.height=4, fig.width=10}
-
- table
-
-```
-
 
 ```{r fig.height=4, fig.width=10}
-library(rstatix) 
-library(lme4)
-library(emmeans)
-modelo <- lmer(valor_log ~ grupo_n * dia + (1|animal_id), 
-               data = table %>% 
-                 filter(!grupo %in% c("QB", "PBS")))
+# library(rstatix) 
+# library(lme4)
+# library(emmeans)
+# modelo <- lmer(valor_log ~ grupo_n * dia + (1|animal_id), 
+#                data = table %>% 
+#                  filter(!grupo %in% c("QB", "PBS")))
+# 
+# 
+# anova_summary <- 
+#   anova(modelo)
+# 
+# # Comparar dias dentro de cada grupo
+# post_hoc <- emmeans(modelo, pairwise ~ dia | grupo_n, adjust = "tukey")
+# 
+# 
+# # Transformar em uma tabela formatada (estilo rstatix)
+# stat.test_misto <- as_tibble(post_hoc$contrasts) %>%
+#   # Limpa o nome do dia se ele vier como "dia 14"
+#   mutate(contrast = str_remove_all(contrast, "dia")) %>% 
+#   separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
+#   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>%
+#   mutate(
+#     p.adj.signif = case_when(
+#       p.value <= 0.001 ~ "***",
+#       p.value <= 0.01  ~ "**",
+#       p.value <= 0.05  ~ "*",
+#       TRUE             ~ "ns"
+#     )
+#   ) %>%
+  # # Importante: para stat_pvalue_manual, xmin e xmax devem ser as categorias do eixo X (dia)
+  # mutate(
+  #   xmin = group1,
+  #   xmax = group2,
+  #   y.position = max(table$valor_log, na.rm = TRUE) + 0.2
+  # ) %>%
+  # filter(p.adj.signif != "ns") %>%
+  # mutate(
+  #   y.position = max(table$valor_log, na.rm = TRUE) +
+  #                0.2 + 0.15 * row_number()
+  # )
+# 
+# stat.test_misto
+# 
+# 
+# # Calcular Effect Size 
+# effect_size <- table %>%
+#   group_by(grupo_n) %>%
+#   filter(!grupo %in% c("QB", "PBS")) %>% 
+#   cohens_d(valor_log ~ dia, var.equal = FALSE) %>% 
+#   mutate(effsize = round(effsize, 1)) 
+# 
+# # Join final
+# stat.test_misto_final <- stat.test_misto %>% 
+#   # inner_join(effect_size, by = c("grupo_n", "group1", "group2")) %>% 
+#   mutate(grupo_n = fct_relevel(grupo_n, c(table %>% 
+#                                  arrange(grupo, dose) %>% 
+#                                  mutate(grupo_n = fct_inorder(grupo_n)) %>% 
+#                                  pull(grupo_n) %>% 
+#                                  levels()))
+#          )
 
 
-anova_summary <- 
-  anova(modelo)
-
-# Comparar dias dentro de cada grupo
-post_hoc <- emmeans(modelo, pairwise ~ dia | grupo_n, adjust = "tukey")
-
-
-# Transformar em uma tabela formatada (estilo rstatix)
-stat.test_misto <- as_tibble(post_hoc$contrasts) %>%
-  # Limpa o nome do dia se ele vier como "dia 14"
-  mutate(contrast = str_remove_all(contrast, "dia")) %>% 
+#Utilizando modelos mistos com ajuste por lote de experimentos
+stat.test <- table %>%
+  filter(!grupo %in% c("QB", "PBS")) %>% 
+  group_modify(~ {
+    # 1. Ajuste do modelo
+    mod <- lmer(valor_log ~ grupo_n*dia + (1|experimento), data = .x)
+    
+    # 2. Obter contrastes e t.ratio
+    res <- emmeans(mod, pairwise ~ dia | grupo_n, adjust = "tukey")$contrasts %>%
+      as_tibble()
+    
+    # 3. Calcular o d de Cohen usando o t e o df do modelo
+    d_values <- t_to_d(res$t.ratio, res$df)
+    
+    res %>% mutate(d_cohen = d_values$d)
+  }) %>%
+  # Ajustando nomes para que o ggplot/ggpubr entenda
+  mutate(contrast = str_remove_all(contrast, "[()]")) %>% 
   separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
-  mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>%
-  mutate(
-    p.adj.signif = case_when(
-      p.value <= 0.001 ~ "***",
-      p.value <= 0.01  ~ "**",
-      p.value <= 0.05  ~ "*",
-      TRUE             ~ "ns"
-    )
-  ) %>%
-  # Importante: para stat_pvalue_manual, xmin e xmax devem ser as categorias do eixo X (dia)
+  rename(p.adj = p.value) %>%
+  mutate(p.adj.signif = case_when(
+    p.adj <= 0.001 ~ "***",
+    p.adj <= 0.01  ~ "**",
+    p.adj <= 0.05  ~ "*",
+    TRUE           ~ "ns",
+  )) %>% 
+  #Add posições
   mutate(
     xmin = group1,
-    xmax = group2,
-    y.position = max(table$valor_log, na.rm = TRUE) + 0.2
+    xmax = group2
   ) %>%
-  filter(p.adj.signif != "ns") %>% 
-  mutate(
-    y.position = max(table$valor_log, na.rm = TRUE) +
-                 0.2 + 0.15 * row_number()
-  ) 
+  filter(p.adj.signif != "ns") %>%
+  mutate(label_full = paste0("d=", round(d_cohen, 1), p.adj.signif)) %>% 
+  mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
+    # filter(!str_detect(grupo_n,"QB|PBS")) %>% 
+  mutate(group1 = str_remove_all(group1, "dia"),
+         group2 = str_remove_all(group2, "dia")) %>% 
+  mutate(grupo_n = fct_relevel(grupo_n, str_replace_all(table$grupo_n %>% levels(), " ", "\n"))) %>% 
+  group_by(grupo_n) %>% 
+  mutate(y.position = max(table$valor_log, na.rm = TRUE) +
+                 0.2 + 0.15 * row_number()) %>% 
+  ungroup()
+ 
+  
 
-stat.test_misto
+stat.test
 
-
-# Calcular Effect Size 
-effect_size <- table %>%
-  group_by(grupo_n) %>%
-  filter(!grupo %in% c("QB", "PBS")) %>% 
-  cohens_d(valor_log ~ dia, var.equal = FALSE) %>% 
-  mutate(effsize = round(effsize, 1)) 
-
-# Join final
-stat.test_misto_final <- stat.test_misto %>% 
-  # inner_join(effect_size, by = c("grupo_n", "group1", "group2")) %>% 
-  mutate(grupo_n = fct_relevel(grupo_n, c(table %>% 
-                                 arrange(grupo, dose) %>% 
-                                 mutate(grupo_n = fct_inorder(grupo_n)) %>% 
-                                 pull(grupo_n) %>% 
-                                 levels()))
-         )
-```
-
-
-```{r fig.height=4, fig.width=10}
 plot_group = table %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
   mutate(
     grupo_n = fct_inorder(grupo_n)
   ) %>% 
-  ggplot(aes(x = dia, y = valor_log)) +   # 🔑 define as escalas
+  ggplot(aes(x = dia, y = valor_log)) + 
   
-  facet_nested_wrap(
+  facet_grid(
     ~grupo_n, 
-    # space  = "free_x", 
-    scales = "free_x", 
-    axes   = "all",
-    nrow = 1
+    space  = "free_x",
+    scales = "free_x",
+    axes   = "margins"
   ) +
   
    # 1. Camadas de dados: Defina o aes(x, y) dentro de cada uma
@@ -1201,23 +1306,25 @@ plot_group = table %>%
             color = "gray50",
             size = 0.5,
             alpha = 0.5) +
-  geom_jitter(aes(x = dia, y = valor_log),
+  geom_jitter(aes(x = dia,
+                  y = valor_log,
+                  shape = experimento),
             color = "black",
             size = 1.5,
             stroke = 1,
-            pch = 1,
             position = position_dodge()) +
-
   stat_pvalue_manual(
-    data = stat.test_misto_final,
-    label = "p.adj.signif", 
+    data = stat.test,
+    label = "label_full", 
     hide.ns = TRUE,
-    xmin = "xmin", 
-    xmax = "xmax",
+    xmin = "group1", 
+    xmax = "group2",
     y.position = "y.position",
     bracket.size = 0.3, 
-    tip.length = 0,
-    inherit.aes = FALSE
+    tip.length = 0.0,
+    size = 2.5,
+    vjust = 0,
+    step.increase = 0.05,
   ) +
   theme_minimal() +
   theme(text = element_text(size = 10,
@@ -1241,22 +1348,28 @@ plot_group = table %>%
                                   color = "black",
                                   angle = 0),
         axis.line.x = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
         ggh4x.axis.nestline = element_line(linetype =1), 
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
-        axis.line.y = element_line(color = "black",
-                                   size = 1),
+
         axis.ticks.x = element_line(color = "black",
                                   size = 1),
         panel.grid = element_line(linetype = 2,
-                                  color = "gray90")) +
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
   scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
+  scale_shape_manual(values = c("Exp1" = 1,
+                             "Exp2" = 0,
+                             "Exp3" = 2)) +
     labs(fill = "Grupo",
        color = "Grupo",
+       shape = "Experimento", 
        x = "Tempo",
        y = "log10(OD50)") 
 
@@ -1293,7 +1406,8 @@ plot_united = (
                                                            b = -10)),
       plot.subtitle = element_text(hjust = 0, margin = margin(l = 30))
     ),
-    title = "ELISA OD50"
+    title = "ELISA OD50",
+    subtitle = "ANOVA baseado no modelo linear misto, ajustado por efeito do lote de experimento, com o método de tukey para correção de p-valores. \nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01.\nBlack thick lines correspond to the mean."
   )
 
 plot_united
@@ -1311,15 +1425,49 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_ByGroup_ByDay
 
 # IgG Subclasses
 ```{r fig.height=5, fig.width=10}
-igg_subclasses <- read_excel(here("Gráficos diversos", "Evelyn", "igg_subclasses.xlsx"))
+igg_subclasses <- read_excel(here("Gráficos diversos", "Evelyn", "igg_subclasses_OD50.xlsx"),
+                               col_names = F) %>% 
+  filter(!`...2` == "Animal")
+
+igg_subclasses_long = 
+  #Dividir tabela em experimentos
+  bind_rows(
+  #Exp 1
+  igg_subclasses %>% 
+  filter(`...1` == "Exp1") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp1,teste),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp1) %>% 
+  clean_names(),
+  
+  #Exp 2
+  igg_subclasses %>% 
+  filter(`...1` == "Exp2") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp2, teste),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp2) %>% 
+  clean_names(),
+  
+  #Exp 3
+  igg_subclasses %>% 
+  filter(`...1` == "Exp3") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp3, teste),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp3) %>% 
+  clean_names()
+  )
 
 
-table = igg_subclasses %>% 
-  drop_na() %>% 
-  pivot_longer(cols = -teste,
-               values_to = "valor",
-               names_to = "condicao") %>% 
-    clean_names() %>% 
+table = igg_subclasses_long %>% 
   group_by(teste) %>%
   separate(condicao, into = c("condicao", "del"), "\\...") %>% 
   select(-del) %>% 
@@ -1365,10 +1513,10 @@ mutate(
   mutate(n = n()) %>% 
   ungroup() %>% 
   mutate(grupo_n = paste0(condicao, " n=", n),
-         dose_n = paste0(dose, "\nn=", n),
-         experimento = "1-2-3") %>% 
+         dose_n = paste0(dose, "\nn=", n)) %>% 
   arrange(grupo, dose) %>% 
-  mutate(dose_n = fct_inorder(dose_n))
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo_n = fct_inorder(grupo_n))
 
 table
 
@@ -1458,51 +1606,94 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_subtypes_
 
 #### Teste de diferenças
 ```{r fig.height=8, fig.width=12}
-library(rstatix) 
-anova_summary <- table %>%
- # filter(!grupo %in% c("QB", "PBS")) %>% 
-  group_by(teste) %>%
-  welch_anova_test(valor_log ~ grupo_n)
+# library(rstatix) 
+# anova_summary <- table %>%
+#  # filter(!grupo %in% c("QB", "PBS")) %>% 
+#   group_by(teste) %>%
+#   welch_anova_test(valor_log ~ grupo_n)
+# 
+# stat.test_dia = table %>% 
+#   filter(!grupo %in% c("QB", "PBS")) %>%
+#     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
+#          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
+#   group_by(teste) %>%
+#   games_howell_test(valor_log ~ grupo_n, 
+#             detailed = T) %>% 
+#   group_by(teste) %>%
+#   add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>% 
+#   ungroup() %>% 
+#   mutate(p.adj.signif = case_when(
+#       p.adj <= 0.01 ~ "***",       # p <= 0.01
+#       p.adj <= 0.05 ~ "**",        # 0.01 < p <= 0.05
+#       p.adj <= 0.10 ~ "*",         # 0.05 < p <= 0.10
+#       TRUE ~ "ns"                        # p > 0.10
+#     )
+#   ) %>% 
+#   group_by(teste) %>% 
+#   mutate(
+#     xmin = group1,
+#     xmax = group2,
+#     y.position = max(table$valor_log, na.rm = TRUE) + 0.2 ) %>%
+#   ungroup() 
+#     # filter(!p.adj.signif %in% c("ns")) %>% 
+#     # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1) 
+# 
+# 
+# # 2. Calcular Effect Size 
+# effect_size <- table %>%
+#   filter(!grupo %in% c("QB", "PBS")) %>% 
+#     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
+#          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
+#   group_by(teste) %>%
+#   cohens_d(valor_log ~ grupo_n, var.equal = FALSE) %>% 
+#   mutate(effsize = round(effsize, 1))
+# 
+# # Join final
+# stat.test<- stat.test_dia %>% 
+#   inner_join(effect_size, by = c("teste", "group1", "group2"))
 
-stat.test_dia = table %>% 
-  filter(!grupo %in% c("QB", "PBS")) %>%
-    mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
-         grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-  group_by(teste) %>%
-  games_howell_test(valor_log ~ grupo_n, 
-            detailed = T) %>% 
-  group_by(teste) %>%
-  add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>% 
-  ungroup() %>% 
-  mutate(p.adj.signif = case_when(
-      p.adj <= 0.01 ~ "***",       # p <= 0.01
-      p.adj <= 0.05 ~ "**",        # 0.01 < p <= 0.05
-      p.adj <= 0.10 ~ "*",         # 0.05 < p <= 0.10
-      TRUE ~ "ns"                        # p > 0.10
-    )
-  ) %>% 
+
+#Utilizando modelos mistos com ajuste por lote de experimentos
+stat.test <- table %>%
   group_by(teste) %>% 
-  mutate(
-    xmin = group1,
-    xmax = group2,
-    y.position = max(table$valor_log, na.rm = TRUE) + 0.2 ) %>%
-  ungroup() 
-    # filter(!p.adj.signif %in% c("ns")) %>% 
-    # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1) 
-
-
-# 2. Calcular Effect Size 
-effect_size <- table %>%
-  filter(!grupo %in% c("QB", "PBS")) %>% 
-    mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
-         grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-  group_by(teste) %>%
-  cohens_d(valor_log ~ grupo_n, var.equal = FALSE) %>% 
-  mutate(effsize = round(effsize, 1))
-
-# Join final
-stat.test<- stat.test_dia %>% 
-  inner_join(effect_size, by = c("teste", "group1", "group2"))
+  group_modify(~ {
+    # 1. Ajuste do modelo
+    mod <- lmer(valor_log ~ grupo_n + (1|experimento), data = .x)
+    
+    # 2. Obter contrastes e t.ratio
+    res <- emmeans(mod, pairwise ~ grupo_n, adjust = "tukey")$contrasts %>%
+      as_tibble()
+    
+    # 3. Calcular o d de Cohen usando o t e o df do modelo
+    d_values <- t_to_d(res$t.ratio, res$df)
+    
+    res %>% mutate(d_cohen = d_values$d)
+  }) %>%
+  # Ajustando nomes para que o ggplot/ggpubr entenda
+  mutate(contrast = str_remove_all(contrast, "[()]")) %>% 
+  separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
+  rename(p.adj = p.value) %>%
+  mutate(p.adj.signif = case_when(
+    p.adj <= 0.001 ~ "***",
+    p.adj <= 0.01  ~ "**",
+    p.adj <= 0.05  ~ "*",
+    TRUE           ~ "ns",
+  )) %>% 
+  group_by(teste) %>% 
+  #Add posições
+  add_xy_position(
+    data = table, 
+    x = "grupo_n", 
+    formula = valor_log ~ grupo_n,
+    step.increase = 0, 
+    scales = "free"
+  ) %>%
+  ungroup() %>% 
+  mutate(label_full = paste0("d=", round(d_cohen, 1), p.adj.signif)) %>% 
+  mutate(group1 = str_replace_all(group1, " ", "\n"),
+         group2 = str_replace_all(group2, " ", "\n"),) %>% 
+    filter(!str_detect(group1,"PBS"),
+         !str_detect(group2,"PBS"))
 ```
 
 
@@ -1540,16 +1731,19 @@ plot = table %>%
                show.legend = F) +
   geom_sina(color = "black",
               size = 1.5, #or geom_jitter(position = position_dodge(width = 0.1))
-             stroke = 1,
-             pch = 1,
+             stroke = 0.5,
+            aes(shape = experimento),
              alpha = 1) +
   stat_pvalue_manual(data = stat.test,
-    label = "p.adj.signif", 
+    label = "label_full", 
     hide.ns = TRUE, 
+    xmin = "group1",
+    xmax = "group2",
     bracket.size = 0.3, 
     tip.length = 0.0,
-    step.increase = 0.05,
-    # vjust = 0.7
+    step.increase = 0.1,
+    vjust = 0.3,
+    size = 2.5
   ) +
 
 # geom_violin(color = "gray10",
@@ -1582,15 +1776,16 @@ plot = table %>%
                                   color = "black",
                                   angle = 0),
         axis.line.x = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
         ggh4x.axis.nestline = element_line(linetype =1), 
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
         axis.line.y = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
+                                  size = 0.5),
         panel.grid = element_line(linetype = 2,
-                                  color = "gray90")) +
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
   
   # # scale_y_continuous(transform = "log10", 
   # #                    labels = scales::label_log(base = 10),
@@ -1601,19 +1796,23 @@ plot = table %>%
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
+      scale_shape_manual(values = c("Exp1" = 1,
+                             "Exp2" = 0,
+                             "Exp3" = 2))+
     labs(fill = "Grupo",
        color = "Grupo",
+       shape = "Experimento",
        x = "",
        y = "Log10(OD50)",
        title = "ELISA OD50% IgG subtypes - All vs. All ") 
 
 plot
 
-plot %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_ByGroup_Welch.png"),
-       width = 10,
-       height = 4,
-       bg = "white")
+# plot %>%
+# ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_ByGroup_Welch.png"),
+#        width = 10,
+#        height = 4,
+#        bg = "white")
 
 ```
 
