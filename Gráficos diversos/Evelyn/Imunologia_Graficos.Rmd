@@ -31,76 +31,8 @@ library(effectsize)
 ```
 
 
-# Design do estudo
-
-Cohen's d Tamanho de efeito:
-0.2: Pequeno (diferença sutil, mas observável).
-0.5: Médio (diferença moderada, perceptível a olho nu).
-0.8 ou maior: Grande (diferença significativa).
-Exemplo prático:
-d=0.2: Diferença de peso entre pessoas de 150 cm e 152 cm de altura.
-d=0.8: Diferença de peso entre pessoas de 150 cm e 165 cm.
-
-Teste T
-```{r}
-# install.packages("pwr")
-library(pwr)
-
-# TESTE T ------
-
-# Calcular poder estatístico
-pwr.t.test(
-  d = 0.8,           # Tamanho do efeito
-  n = 12,          
-  sig.level = 0.05, 
-  type = "two.sample", 
-  alternative = "two.sided" # Teste bilateral
-)
-
-
-# Calcular tamanho da amostra
-pwr.t.test(
-  d = 1,           # Tamanho do efeito
-  power = 0.8,       # Poder desejado
-  sig.level = 0.05,  # Nível de significância
-  type = "two.sample"  # Teste de duas amostras
-)
-
-
-
-# Parâmetros
-mean_diff <- 1    # Diferença esperada entre os grupos
-sd1 <- 2          # Desvio padrão do grupo 1
-sd2 <- 1          # Desvio padrão do grupo 2
-power <- 0.8      # Poder desejado
-alpha <- 0.05     # Nível de significância
-
-```
-
-ANOVA
-```{r}
-# ANOVA -----
-# Calcular o poder
-pwr.anova.test(
-  k = 3,           # Grupos
-  n = 10,          # Tamanho da amostra por grupo
-  f = 0.25,        # Effect size (pequeno = 0.1, médio = 0.25, grande = 0.4)
-  sig.level = 0.05 # Nível de significância
-)
-
-# Calcular tamanho de amostra
-pwr.anova.test(
-  k = 3,            # Grupos 
-  power = 0.5,      # Poder
-  f = 0.4,        # Effect size (pequeno = 0.1, médio = 0.25, grande = 0.4)
-  sig.level = 0.05 # Nível de significância
-)
-
-```
-
-
-
-# Citometria
+#Importar tabelas
+## Citometria
 ```{r}
 #Importar
 citometria_dezembro <- read_excel(here("Gráficos diversos", "Evelyn", "citometria.xlsx"),
@@ -208,6 +140,355 @@ citometria_clean %>%
 
 ```
 
+## ELISA OD50 
+
+```{r fig.height=5, fig.width=10}
+ELISA_OD50 <- read_excel(here("Gráficos diversos", "Evelyn", "ELISA_OD50.xlsx"), col_names = F) %>% 
+  filter(!`...2` == "Animal")
+
+ELISA_OD50_long = 
+  #Dividir tabela em experimentos
+  bind_rows(
+  #Exp 1
+  ELISA_OD50 %>% 
+  filter(`...1` == "Exp1") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp1,dia),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp1) %>% 
+  clean_names(),
+  
+  #Exp 2
+  ELISA_OD50 %>% 
+  filter(`...1` == "Exp2") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp2, dia),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp2) %>% 
+  clean_names(),
+  
+  #Exp 3
+  ELISA_OD50 %>% 
+  filter(`...1` == "Exp3") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp3, dia),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp3) %>% 
+  clean_names()
+  )
+
+table = ELISA_OD50_long %>% 
+  mutate(teste = "ELISA OD50") %>% 
+  group_by(teste, dia) %>%
+  separate(condicao, into = c("condicao", "del"), "\\...") %>% 
+  select(-del) %>% 
+  mutate(animal_id = paste0("M.", row_number())) %>% 
+  ungroup() %>% 
+  mutate(dia = round(as.numeric(dia), 0),
+         dia = as.factor(dia),
+         #substituir virgula por ponto  
+         valor = str_replace(valor, ",", ".") %>% 
+           str_replace(", ", ".") %>% 
+           str_replace(". ", ".") %>% 
+           as.numeric(),
+         valor_log = log10(valor + 1),
+         
+         condicao = str_replace(condicao, "ug", "μg"), #Trocar unidade
+         condicao = str_replace(condicao, " μg", "μg"), #Trocar unidade
+         ) %>% 
+  mutate(condicao = str_replace(condicao, pattern = "Vacina Alum ", "Alum "),
+         condicao = str_replace(condicao, pattern = "Vacina ", "Vac "),
+         condicao = str_remove(condicao, pattern = "Proteína "),
+         #Definir grupos, sem a dose
+         grupo = case_when(str_detect(condicao, "Vac") ~ "Vac",
+                           str_detect(condicao, "PBS") ~ "PBS",
+                           str_detect(condicao, "QB") ~ "QB",
+                           str_detect(condicao, "ED-III") ~ "ED-III",
+                           str_detect(condicao, "Alum") ~ "Alum",
+                           T ~ condicao),
+         grupo = fct_relevel(grupo, 
+                             "PBS", 
+                             "QB",
+                             "ED-III",
+                             "Vac",
+                             "Alum"
+                             ),
+         #Extrair e reordenar dose
+         dose = str_remove_all(condicao, "Alum |PBS |Vac |ED-III "),
+         #Reordenar fatores
+         dose = fct_relevel(dose, 
+                             "PBS",
+                              "QB",
+                             "10μg",
+                             "25μg",
+                             "50μg")) %>% 
+  #Add summary statistics
+  group_by(teste, dia, grupo, dose) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  mutate(grupo_n = paste0(condicao, " n=", n),
+         dose_n = paste0(dose, "\nn=", n)) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo_n = fct_inorder(grupo_n))
+
+table
+
+```
+
+## ELISA IgG Sublasses
+
+```{r fig.height=5, fig.width=10}
+igg_subclasses <- read_excel(here("Gráficos diversos", "Evelyn", "igg_subclasses_OD50.xlsx"),
+                               col_names = F) %>% 
+  filter(!`...2` == "Animal")
+
+igg_subclasses_long = 
+  #Dividir tabela em experimentos
+  bind_rows(
+  #Exp 1
+  igg_subclasses %>% 
+  filter(`...1` == "Exp1") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp1,teste),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp1) %>% 
+  clean_names(),
+  
+  #Exp 2
+  igg_subclasses %>% 
+  filter(`...1` == "Exp2") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp2, teste),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp2) %>% 
+  clean_names(),
+  
+  #Exp 3
+  igg_subclasses %>% 
+  filter(`...1` == "Exp3") %>% 
+  row_to_names(row_number = 1) %>% 
+  remove_empty("cols") %>% 
+  pivot_longer(cols = -c(Exp3, teste),
+               names_to = "condicao",
+               values_to = "valor") %>% 
+  rename(experimento = Exp3) %>% 
+  clean_names()
+  )
+
+
+igg_subclasses_anotado = igg_subclasses_long %>% 
+  group_by(teste) %>%
+  separate(condicao, into = c("condicao", "del"), "\\...") %>% 
+  select(-del) %>% 
+  ungroup() %>%
+mutate(
+         valor = str_replace(valor, ",", ".") %>% 
+           str_replace(", ", ".") %>% 
+           str_replace(". ", ".") %>% 
+           as.numeric(),
+         valor_log = log10(valor + 1),
+         
+         condicao = str_replace(condicao, "ug", "μg"), #Trocar unidade
+         condicao = str_replace(condicao, " μg", "μg"), #Trocar unidade
+         ) %>% 
+  mutate(condicao = str_replace(condicao, pattern = "Vacina Alum ", "Alum "),
+         condicao = str_replace(condicao, pattern = "Vacina ", "Vac "),
+         condicao = str_remove(condicao, pattern = "Proteína "),
+         #Definir grupos, sem a dose
+         grupo = case_when(str_detect(condicao, "Vac") ~ "Vac",
+                           str_detect(condicao, "PBS") ~ "PBS",
+                           str_detect(condicao, "QB") ~ "QB",
+                           str_detect(condicao, "ED-III") ~ "ED-III",
+                           str_detect(condicao, "Alum") ~ "Alum",
+                           T ~ condicao),
+         grupo = fct_relevel(grupo, 
+                             "PBS", 
+                             "QB",
+                             "ED-III",
+                             "Vac",
+                             "Alum"
+                             ),
+         #Extrair e reordenar dose
+         dose = str_remove_all(condicao, "Alum |PBS |Vac |ED-III "),
+         #Reordenar fatores
+         dose = fct_relevel(dose, 
+                             "PBS",
+                              "QB",
+                             "10μg",
+                             "25μg",
+                             "50μg")) %>% 
+  #Add summary statistics
+  group_by(teste, grupo, dose) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  mutate(grupo_n = paste0(condicao, " n=", n),
+         dose_n = paste0(dose, "\nn=", n)) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo_n = fct_inorder(grupo_n))
+
+igg_subclasses_anotado
+
+```
+
+
+
+# Design do estudo
+
+## Power analysis
+Cohen's d Tamanho de efeito:
+0.2: Pequeno (diferença sutil, mas observável).
+0.5: Médio (diferença moderada, perceptível a olho nu).
+0.8 ou maior: Grande (diferença significativa).
+Exemplo prático:
+d=0.2: Diferença de peso entre pessoas de 150 cm e 152 cm de altura.
+d=0.8: Diferença de peso entre pessoas de 150 cm e 165 cm.
+
+Teste T
+```{r}
+# install.packages("pwr")
+library(pwr)
+
+# TESTE T ------
+
+# Calcular poder estatístico
+pwr.t.test(
+  d = 0.8,           # Tamanho do efeito
+  n = 12,          
+  sig.level = 0.05, 
+  type = "two.sample", 
+  alternative = "two.sided" # Teste bilateral
+)
+
+
+# Calcular tamanho da amostra
+pwr.t.test(
+  d = 1,           # Tamanho do efeito
+  power = 0.8,       # Poder desejado
+  sig.level = 0.05,  # Nível de significância
+  type = "two.sample"  # Teste de duas amostras
+)
+
+
+
+# Parâmetros
+mean_diff <- 1    # Diferença esperada entre os grupos
+sd1 <- 2          # Desvio padrão do grupo 1
+sd2 <- 1          # Desvio padrão do grupo 2
+power <- 0.8      # Poder desejado
+alpha <- 0.05     # Nível de significância
+
+```
+
+ANOVA
+```{r}
+# ANOVA -----
+# Calcular o poder
+pwr.anova.test(
+  k = 3,           # Grupos
+  n = 10,          # Tamanho da amostra por grupo
+  f = 0.25,        # Effect size (pequeno = 0.1, médio = 0.25, grande = 0.4)
+  sig.level = 0.05 # Nível de significância
+)
+
+# Calcular tamanho de amostra
+pwr.anova.test(
+  k = 3,            # Grupos 
+  power = 0.5,      # Poder
+  f = 0.4,        # Effect size (pequeno = 0.1, médio = 0.25, grande = 0.4)
+  sig.level = 0.05 # Nível de significância
+)
+
+```
+
+
+## Demografia
+
+
+
+
+```{r fig.height=3, fig.width=3}
+experimentos_n_condicoes =  citometria_clean %>% 
+    select(!c(valor, marcador, teste)) %>% 
+  distinct() %>% 
+   #Add summary statistics
+  group_by(grupo, dose, experimento) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  arrange(grupo, dose) %>% 
+  mutate(condicao = fct_inorder(condicao)) %>% 
+  distinct()  %>%
+  ggplot() +
+  aes(x = experimento, 
+      y = fct_rev(condicao)) +
+  geom_point(aes(size = n,
+                 fill = grupo),
+             pch = 21) +
+  geom_text(aes(label = n), nudge_x = 0.15, hjust = 0, size = 3, fontface = "plain") +
+  scale_size_binned(range = c(2, 5)) +
+  theme_minimal() +
+  theme(text = element_text(size = 10,
+                            color = "black"),
+        axis.title = element_blank(),
+        plot.caption = element_text(size = 10, 
+                                    color = "black",
+                                    hjust = 0.5),
+        legend.position = "right",
+        legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-10,0),
+          legend.text = element_text(size = 10, hjust = 0),
+          legend.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
+                                   color = "black"),
+        axis.text.y = element_text(size = 10,
+                                   color = "black"),
+        strip.text = element_text(size = 10,
+                                  color = "black"),
+        strip.text.y = element_text(size = 10,
+                                  color = "black",
+                                  angle = 0),
+        axis.line.x = element_line(color = "black",
+                                   size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        panel.grid = element_line(linetype = 2,
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
+
+  scale_fill_manual(values = c("PBS" = "white",
+                             "ED-III" = "#9f9fed",
+                             "QB" = "#adf7b6",
+                             "Vac" = "#a9def9",
+                             "Alum" = "#ff5d8f"))+
+  guides(size = "none",
+         fill = "none",
+         color = "none")
+
+#Print
+experimentos_n_condicoes
+
+experimentos_n_condicoes %>%
+  ggsave(filename = here("Gráficos diversos", "Evelyn", "experimentos_n_condicoes_demography.png"),
+         width = 3,
+         height = 3)
+```
+
+
+# Citometria
 ##Todos os experimentos
 ### Distribuições
 ```{r fig.height=8, fig.width=10}
@@ -813,13 +1094,19 @@ citometria_clean_boxplots = citometria_exp1 %>%
       outlier.shape = NA,
       width = 0.5,
       alpha = 1) +
-  # Para Intervalo de Confiança de 95% (Distribuição t)
-  # stat_summary(geom = "crossbar", fun.data = mean_cl_normal, position = "dodge", width=.2)+
   geom_sina(size = 1.5,
              stroke = 1,
              pch = 1,
              alpha = 1,
             color = "black") +
+    stat_summary(fun.y= mean, 
+               geom="point", 
+               shape=95, 
+               size=5, 
+               color="black",
+               stroke = 5,
+               alpha = 1,
+               show.legend = F) +
   theme_minimal() +
   labs(title = "Distribuição dos Valores por Grupo, Citometria",
        x = "",
@@ -885,105 +1172,7 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_CD4_CD8_Exp1.
 
 
 # ELISA OD50
-```{r fig.height=5, fig.width=10}
-ELISA_OD50 <- read_excel(here("Gráficos diversos", "Evelyn", "ELISA_OD50.xlsx"), col_names = F) %>% 
-  filter(!`...2` == "Animal")
 
-ELISA_OD50_long = 
-  #Dividir tabela em experimentos
-  bind_rows(
-  #Exp 1
-  ELISA_OD50 %>% 
-  filter(`...1` == "Exp1") %>% 
-  row_to_names(row_number = 1) %>% 
-  remove_empty("cols") %>% 
-  pivot_longer(cols = -c(Exp1,dia),
-               names_to = "condicao",
-               values_to = "valor") %>% 
-  rename(experimento = Exp1) %>% 
-  clean_names(),
-  
-  #Exp 2
-  ELISA_OD50 %>% 
-  filter(`...1` == "Exp2") %>% 
-  row_to_names(row_number = 1) %>% 
-  remove_empty("cols") %>% 
-  pivot_longer(cols = -c(Exp2, dia),
-               names_to = "condicao",
-               values_to = "valor") %>% 
-  rename(experimento = Exp2) %>% 
-  clean_names(),
-  
-  #Exp 3
-  ELISA_OD50 %>% 
-  filter(`...1` == "Exp3") %>% 
-  row_to_names(row_number = 1) %>% 
-  remove_empty("cols") %>% 
-  pivot_longer(cols = -c(Exp3, dia),
-               names_to = "condicao",
-               values_to = "valor") %>% 
-  rename(experimento = Exp3) %>% 
-  clean_names()
-  )
-
-table = ELISA_OD50_long %>% 
-  mutate(teste = "ELISA OD50") %>% 
-  group_by(teste, dia) %>%
-  separate(condicao, into = c("condicao", "del"), "\\...") %>% 
-  select(-del) %>% 
-  mutate(animal_id = paste0("M.", row_number())) %>% 
-  ungroup() %>% 
-  mutate(dia = round(as.numeric(dia), 0),
-         dia = as.factor(dia),
-         #substituir virgula por ponto  
-         valor = str_replace(valor, ",", ".") %>% 
-           str_replace(", ", ".") %>% 
-           str_replace(". ", ".") %>% 
-           as.numeric(),
-         valor_log = log10(valor + 1),
-         
-         condicao = str_replace(condicao, "ug", "μg"), #Trocar unidade
-         condicao = str_replace(condicao, " μg", "μg"), #Trocar unidade
-         ) %>% 
-  mutate(condicao = str_replace(condicao, pattern = "Vacina Alum ", "Alum "),
-         condicao = str_replace(condicao, pattern = "Vacina ", "Vac "),
-         condicao = str_remove(condicao, pattern = "Proteína "),
-         #Definir grupos, sem a dose
-         grupo = case_when(str_detect(condicao, "Vac") ~ "Vac",
-                           str_detect(condicao, "PBS") ~ "PBS",
-                           str_detect(condicao, "QB") ~ "QB",
-                           str_detect(condicao, "ED-III") ~ "ED-III",
-                           str_detect(condicao, "Alum") ~ "Alum",
-                           T ~ condicao),
-         grupo = fct_relevel(grupo, 
-                             "PBS", 
-                             "QB",
-                             "ED-III",
-                             "Vac",
-                             "Alum"
-                             ),
-         #Extrair e reordenar dose
-         dose = str_remove_all(condicao, "Alum |PBS |Vac |ED-III "),
-         #Reordenar fatores
-         dose = fct_relevel(dose, 
-                             "PBS",
-                              "QB",
-                             "10μg",
-                             "25μg",
-                             "50μg")) %>% 
-  #Add summary statistics
-  group_by(teste, dia, grupo, dose) %>% 
-  mutate(n = n()) %>% 
-  ungroup() %>% 
-  mutate(grupo_n = paste0(condicao, " n=", n),
-         dose_n = paste0(dose, "\nn=", n)) %>% 
-  arrange(grupo, dose) %>% 
-  mutate(dose_n = fct_inorder(dose_n),
-         grupo_n = fct_inorder(grupo_n))
-
-table
-
-```
 
 
 ##Todos os experimentos
@@ -1552,7 +1741,12 @@ plot = elisa_od50_exp1 %>%
       outlier.shape = NA,
       width = 0.5,
       alpha = 1) +
-  stat_summary(fun.y= mean, 
+  geom_sina(color = "black",
+              size = 1.5,
+             stroke = 1,
+             pch = 1,
+             alpha = 1) +
+    stat_summary(fun.y= mean, 
                geom="point", 
                shape=95, 
                size=5, 
@@ -1560,12 +1754,6 @@ plot = elisa_od50_exp1 %>%
                stroke = 5,
                alpha = 1,
                show.legend = F) +
-  geom_sina(color = "black",
-              size = 1.5,
-             stroke = 1,
-             pch = 1,
-             alpha = 1) +
-  
   theme_minimal() +
   theme(text = element_text(size = 10,
                             color = "black"),
@@ -1609,10 +1797,7 @@ plot = elisa_od50_exp1 %>%
        y = "OD50") 
 
 plot
-```
 
-
-```{r fig.height=4, fig.width=6}
 plot_group = elisa_od50_exp1 %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
@@ -1646,6 +1831,14 @@ plot_group = elisa_od50_exp1 %>%
             size = 1.5,
             stroke = 1,
             position = position_dodge()) +
+    stat_summary(fun.y= mean, 
+               geom="point", 
+               shape=95, 
+               size=5, 
+               color="black",
+               stroke = 5,
+               alpha = 1,
+               show.legend = F) +
   theme_minimal() +
   theme(text = element_text(size = 10,
                             color = "black"),
@@ -1715,13 +1908,13 @@ plot_united = (
       legend.title = element_text(size = 10),
       panel.spacing = unit(0, "lines"),
       plot.margin = margin(0.5, 0, 0, 0, unit = "cm"),
-      plot.title = element_text(hjust = 0, face = "bold", 
+      plot.title = element_text(hjust = 0,
                                 margin = margin(l = 30,
                                                 b = 0)),
       plot.subtitle = element_text(hjust = 0, margin = margin(l = 30))
     ),
     title = "ELISA OD50",
-    subtitle = "ANOVA baseado no modelo linear misto, ajustado por efeito do lote de experimento,\ncom o método de tukey para correção de p-valores.\nSignificance p-value symbols: * = 0.10, ** = 0.05, *** = < 0.01.\nBlack thick lines correspond to the mean."
+    subtitle = "Black thick lines correspond to the mean."
   )
 
 plot_united
@@ -1737,115 +1930,15 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_ByGroup_ByDay
 
 
 # IgG Subclasses
-```{r fig.height=5, fig.width=10}
-igg_subclasses <- read_excel(here("Gráficos diversos", "Evelyn", "igg_subclasses_OD50.xlsx"),
-                               col_names = F) %>% 
-  filter(!`...2` == "Animal")
 
-igg_subclasses_long = 
-  #Dividir tabela em experimentos
-  bind_rows(
-  #Exp 1
-  igg_subclasses %>% 
-  filter(`...1` == "Exp1") %>% 
-  row_to_names(row_number = 1) %>% 
-  remove_empty("cols") %>% 
-  pivot_longer(cols = -c(Exp1,teste),
-               names_to = "condicao",
-               values_to = "valor") %>% 
-  rename(experimento = Exp1) %>% 
-  clean_names(),
-  
-  #Exp 2
-  igg_subclasses %>% 
-  filter(`...1` == "Exp2") %>% 
-  row_to_names(row_number = 1) %>% 
-  remove_empty("cols") %>% 
-  pivot_longer(cols = -c(Exp2, teste),
-               names_to = "condicao",
-               values_to = "valor") %>% 
-  rename(experimento = Exp2) %>% 
-  clean_names(),
-  
-  #Exp 3
-  igg_subclasses %>% 
-  filter(`...1` == "Exp3") %>% 
-  row_to_names(row_number = 1) %>% 
-  remove_empty("cols") %>% 
-  pivot_longer(cols = -c(Exp3, teste),
-               names_to = "condicao",
-               values_to = "valor") %>% 
-  rename(experimento = Exp3) %>% 
-  clean_names()
-  )
-
-
-table = igg_subclasses_long %>% 
-  group_by(teste) %>%
-  separate(condicao, into = c("condicao", "del"), "\\...") %>% 
-  select(-del) %>% 
-  ungroup() %>%
-mutate(
-         valor = str_replace(valor, ",", ".") %>% 
-           str_replace(", ", ".") %>% 
-           str_replace(". ", ".") %>% 
-           as.numeric(),
-         valor_log = log10(valor + 1),
-         
-         condicao = str_replace(condicao, "ug", "μg"), #Trocar unidade
-         condicao = str_replace(condicao, " μg", "μg"), #Trocar unidade
-         ) %>% 
-  mutate(condicao = str_replace(condicao, pattern = "Vacina Alum ", "Alum "),
-         condicao = str_replace(condicao, pattern = "Vacina ", "Vac "),
-         condicao = str_remove(condicao, pattern = "Proteína "),
-         #Definir grupos, sem a dose
-         grupo = case_when(str_detect(condicao, "Vac") ~ "Vac",
-                           str_detect(condicao, "PBS") ~ "PBS",
-                           str_detect(condicao, "QB") ~ "QB",
-                           str_detect(condicao, "ED-III") ~ "ED-III",
-                           str_detect(condicao, "Alum") ~ "Alum",
-                           T ~ condicao),
-         grupo = fct_relevel(grupo, 
-                             "PBS", 
-                             "QB",
-                             "ED-III",
-                             "Vac",
-                             "Alum"
-                             ),
-         #Extrair e reordenar dose
-         dose = str_remove_all(condicao, "Alum |PBS |Vac |ED-III "),
-         #Reordenar fatores
-         dose = fct_relevel(dose, 
-                             "PBS",
-                              "QB",
-                             "10μg",
-                             "25μg",
-                             "50μg")) %>% 
-  #Add summary statistics
-  group_by(teste, grupo, dose) %>% 
-  mutate(n = n()) %>% 
-  ungroup() %>% 
-  mutate(grupo_n = paste0(condicao, " n=", n),
-         dose_n = paste0(dose, "\nn=", n)) %>% 
-  arrange(grupo, dose) %>% 
-  mutate(dose_n = fct_inorder(dose_n),
-         grupo_n = fct_inorder(grupo_n))
-
-table
-
-```
-
-
-
-
-
-## ANOVA e posthoc
-### Teste de normalidade
+## Todos os experimentos
+### ANOVA e posthoc
+#### Teste de normalidade
 ```{r fig.height=5, fig.width=5}
 #Teste de Shapiro-Wilk
 ## p<0.05: Não-normal
 ## p>0.05: Normal
-table %>% 
+igg_subclasses_anotado %>% 
   filter(!grupo %in% c("QB", "PBS")) %>% 
   group_by(grupo) %>% 
   shapiro_test(valor_log) %>% 
@@ -1853,7 +1946,7 @@ table %>%
 
 
 # Q-Q Plot
-qq_plot = table %>% 
+qq_plot = igg_subclasses_anotado %>% 
   arrange(grupo_n) %>% 
   mutate(condicao = fct_inorder(condicao)) %>% 
 ggplot(aes(sample = valor_log,
@@ -1915,17 +2008,17 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_subtypes_
 
 
 ```
-### Por dia
+#### Por dia
 
-#### Teste de diferenças
+##### Teste de diferenças
 ```{r fig.height=8, fig.width=12}
 # library(rstatix) 
-# anova_summary <- table %>%
+# anova_summary <- igg_subclasses_anotado %>%
 #  # filter(!grupo %in% c("QB", "PBS")) %>% 
 #   group_by(teste) %>%
 #   welch_anova_test(valor_log ~ grupo_n)
 # 
-# stat.test_dia = table %>% 
+# stat.test_dia = igg_subclasses_anotado %>% 
 #   filter(!grupo %in% c("QB", "PBS")) %>%
 #     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
 #          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
@@ -1946,14 +2039,14 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_subtypes_
 #   mutate(
 #     xmin = group1,
 #     xmax = group2,
-#     y.position = max(table$valor_log, na.rm = TRUE) + 0.2 ) %>%
+#     y.position = max(igg_subclasses_anotado$valor_log, na.rm = TRUE) + 0.2 ) %>%
 #   ungroup() 
 #     # filter(!p.adj.signif %in% c("ns")) %>% 
 #     # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1) 
 # 
 # 
 # # 2. Calcular Effect Size 
-# effect_size <- table %>%
+# effect_size <- igg_subclasses_anotado %>%
 #   filter(!grupo %in% c("QB", "PBS")) %>% 
 #     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
 #          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
@@ -1967,7 +2060,7 @@ ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_subtypes_
 
 
 #Utilizando modelos mistos com ajuste por lote de experimentos
-stat.test <- table %>%
+stat.test <- igg_subclasses_anotado %>%
   group_by(teste) %>% 
   group_modify(~ {
     # 1. Ajuste do modelo
@@ -1995,7 +2088,7 @@ stat.test <- table %>%
   group_by(teste) %>% 
   #Add posições
   add_xy_position(
-    data = table, 
+    data = igg_subclasses_anotado, 
     x = "grupo_n", 
     formula = valor_log ~ grupo_n,
     step.increase = 0, 
@@ -2011,7 +2104,7 @@ stat.test <- table %>%
 
 
 ```{r fig.height=5, fig.width=10}
-plot = table %>% 
+plot = igg_subclasses_anotado %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
   mutate(grupo_n = fct_inorder(grupo_n)) %>% 
@@ -2127,6 +2220,112 @@ plot
 #        height = 4,
 #        bg = "white")
 
+```
+
+
+## Experimento 1
+
+```{r fig.height=8, fig.width=5}
+igg_subclasses_anotado_exp1 = igg_subclasses_anotado %>% 
+  filter(experimento == "Exp1") %>% 
+  #Add summary statistics
+  group_by(teste, grupo, dose) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  mutate(grupo_n = paste0(condicao, " n=", n),
+         dose_n = paste0(dose, "\nn=", n)) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo_n = fct_inorder(grupo_n))
+
+
+plot = igg_subclasses_anotado_exp1 %>% 
+  mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(grupo_n = fct_inorder(grupo_n)) %>% 
+  ggplot() +
+  aes(x = grupo_n,
+      y = valor_log,
+      fill = grupo) +
+    facet_grid(~teste,
+             space = "free_x",
+             scales = "free_x",
+             axes = "all",
+             ) +
+  geom_boxplot(
+      outlier.shape = NA,
+      width = 0.5,
+      alpha = 1) +
+
+  geom_sina(color = "black",
+              size = 1.5, #or geom_jitter(position = position_dodge(width = 0.1))
+             stroke = 0.5,
+            pch = 1,
+             alpha = 1) +
+    stat_summary(fun.y= mean, 
+               geom="point", 
+               shape=95, 
+               size=5, 
+               color="black",
+               stroke = 5,
+               alpha = 1,
+               show.legend = F) +
+  theme_minimal() +
+  theme(text = element_text(size = 10,
+                            color = "black"),
+        plot.caption = element_text(size = 10, 
+                                    color = "black",
+                                    hjust = 0.5),
+        legend.position = "top",
+        legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-10,0),
+          legend.text = element_text(size = 10, hjust = 0),
+          legend.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
+                                   color = "black"),
+        axis.text.y = element_text(size = 10,
+                                   color = "black"),
+        strip.text = element_text(size = 10,
+                                  color = "black"),
+        strip.text.y = element_text(size = 10,
+                                  color = "black",
+                                  angle = 0),
+        axis.line.x = element_line(color = "black",
+                                   size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        panel.grid = element_line(linetype = 2,
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
+  
+  # # scale_y_continuous(transform = "log10", 
+  # #                    labels = scales::label_log(base = 10),
+  # #                    breaks = scales::breaks_log(n = 6)) +
+  # annotation_logticks(sides = "l") +
+  scale_fill_manual(values = c("PBS" = "white",
+                             "ED-III" = "#9f9fed",
+                             "QB" = "#adf7b6",
+                             "Vac" = "#a9def9",
+                             "Alum" = "#ff5d8f"))+
+    labs(fill = "Grupo",
+       color = "Grupo",
+       shape = "Experimento",
+       x = "",
+       y = "Log10(OD50)",
+       title = "ELISA OD50% IgG subtypes - All vs. All ") 
+
+plot
+
+plot %>%
+ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_ByGroup_Exp1.png"),
+       width = 5,
+       height = 8,
+       bg = "white")
 ```
 
 
