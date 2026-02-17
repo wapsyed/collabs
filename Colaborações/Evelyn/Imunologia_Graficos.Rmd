@@ -418,7 +418,7 @@ pwr.anova.test(
 
 
 
-```{r fig.height=3, fig.width=3}
+```{r fig.height=6, fig.width=2.2}
 experimentos_n_condicoes =  citometria_clean %>% 
     select(!c(valor, marcador, teste)) %>% 
   distinct() %>% 
@@ -435,7 +435,7 @@ experimentos_n_condicoes =  citometria_clean %>%
   geom_point(aes(size = n,
                  fill = grupo),
              pch = 21) +
-  geom_text(aes(label = n), nudge_x = 0.15, hjust = 0, size = 3, fontface = "plain") +
+  geom_text(aes(label = n), nudge_x = 0.24, hjust = 0, size = 3, fontface = "plain") +
   scale_size_binned(range = c(2, 5)) +
   theme_minimal() +
   theme(text = element_text(size = 10,
@@ -483,8 +483,8 @@ experimentos_n_condicoes
 
 experimentos_n_condicoes %>%
   ggsave(filename = here("Gráficos diversos", "Evelyn", "experimentos_n_condicoes_demography.png"),
-         width = 3,
-         height = 3)
+         width = 2.2,
+         height = 4)
 ```
 
 
