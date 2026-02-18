@@ -35,7 +35,7 @@ library(effectsize)
 ## Citometria
 ```{r}
 #Importar
-citometria_dezembro <- read_excel(here("Gráficos diversos", "Evelyn", "citometria.xlsx"),
+citometria_dezembro <- read_excel(here("Colaborações", "Evelyn", "citometria.xlsx"),
                                   col_names = F) %>% 
   filter(!`...3` == "Animal")
 
@@ -136,14 +136,14 @@ citometria_clean
 citometria_clean$grupo
 
 citometria_clean %>% 
-  write_csv(file = here("Gráficos diversos", "Evelyn", "citometria_clean.csv"))
+  write_csv(file = here("Colaborações", "Evelyn", "citometria_clean.csv"))
 
 ```
 
 ## ELISA OD50 
 
 ```{r fig.height=5, fig.width=10}
-ELISA_OD50 <- read_excel(here("Gráficos diversos", "Evelyn", "ELISA_OD50.xlsx"), col_names = F) %>% 
+ELISA_OD50 <- read_excel(here("Colaborações", "Evelyn", "ELISA_OD50.xlsx"), col_names = F) %>% 
   filter(!`...2` == "Animal")
 
 ELISA_OD50_long = 
@@ -245,7 +245,7 @@ table
 ## ELISA IgG Sublasses
 
 ```{r fig.height=5, fig.width=10}
-igg_subclasses <- read_excel(here("Gráficos diversos", "Evelyn", "igg_subclasses_OD50.xlsx"),
+igg_subclasses <- read_excel(here("Colaborações", "Evelyn", "igg_subclasses_OD50.xlsx"),
                                col_names = F) %>% 
   filter(!`...2` == "Animal")
 
@@ -482,7 +482,7 @@ experimentos_n_condicoes =  citometria_clean %>%
 experimentos_n_condicoes
 
 experimentos_n_condicoes %>%
-  ggsave(filename = here("Gráficos diversos", "Evelyn", "experimentos_n_condicoes_demography.png"),
+  ggsave(filename = here("Colaborações", "Evelyn", "experimentos_n_condicoes_demography.png"),
          width = 2.2,
          height = 4)
 ```
@@ -581,7 +581,7 @@ citometria_clean_boxplots
 
 
 # citometria_clean_boxplots %>%
-# ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_CD4_CD8.png"),
+# ggsave(filename = here("Colaborações", "Evelyn", "Citometria_CD4_CD8.png"),
 #        width = 10,
 #        height = 8,
 #        bg = "white")
@@ -655,7 +655,7 @@ ggplot(aes(sample = valor,
 qq_plot
 
 qq_plot %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_qqplot.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "Citometria_qqplot.png"),
        width = 10,
        height = 10,
        bg = "white")
@@ -1052,7 +1052,7 @@ citometria_plot_CD4_CD8_test = ((citometria_plot_CD4 + theme(plot.title = elemen
 citometria_plot_CD4_CD8_test
 
 citometria_plot_CD4_CD8_test %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_AllvsAll_LMM_CD4_CD8.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "Citometria_AllvsAll_LMM_CD4_CD8.png"),
        width = 12,
        height = 10,
        bg = "white")
@@ -1157,7 +1157,7 @@ citometria_clean_boxplots
 
 
 citometria_clean_boxplots %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "Citometria_CD4_CD8_Exp1.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "Citometria_CD4_CD8_Exp1.png"),
        width = 6,
        height = 8,
        bg = "white")
@@ -1247,7 +1247,7 @@ ggplot(aes(sample = valor_log,
 qq_plot
 
 qq_plot %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_qqplot.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_qqplot.png"),
        width = 5,
        height = 5,
        bg = "white")
@@ -1662,7 +1662,7 @@ plot_group = table %>%
 plot_group
 
 # plot_group %>%
-# ggsave(filename = here("Gráficos diversos", "ELISA_OD50_ByGroup_Kruskal.png"),
+# ggsave(filename = here("Colaborações", "ELISA_OD50_ByGroup_Kruskal.png"),
 #        width = 10,
 #        height = 4,
 #        bg = "white")
@@ -1699,7 +1699,7 @@ plot_united = (
 plot_united
 
 plot_united %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_ByGroup_ByDay.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_ByGroup_ByDay.png"),
        width = 12,
        height = 10,
        bg = "white")
@@ -1920,7 +1920,7 @@ plot_united = (
 plot_united
 
 plot_united %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_ByGroup_ByDay_Exp1.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_ByGroup_ByDay_Exp1.png"),
        width = 8,
        height = 8,
        bg = "white")
@@ -2001,7 +2001,7 @@ ggplot(aes(sample = valor_log,
 qq_plot
 
 qq_plot %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_subtypes_qqplot.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_subtypes_qqplot.png"),
        width = 5,
        height = 5,
        bg = "white")
@@ -2215,7 +2215,7 @@ plot = igg_subclasses_anotado %>%
 plot
 
 # plot %>%
-# ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_ByGroup_Welch.png"),
+# ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_ByGroup_Welch.png"),
 #        width = 10,
 #        height = 4,
 #        bg = "white")
@@ -2322,7 +2322,7 @@ plot = igg_subclasses_anotado_exp1 %>%
 plot
 
 plot %>%
-ggsave(filename = here("Gráficos diversos", "Evelyn", "ELISA_OD50_IgG_ByGroup_Exp1.png"),
+ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_ByGroup_Exp1.png"),
        width = 5,
        height = 8,
        bg = "white")
