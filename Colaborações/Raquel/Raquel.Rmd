@@ -5,27 +5,14 @@ output: html_document
 
 #Importar pacotes
 ```{r}
-library(tidyverse)
-library(rstatix)
-library(ggsci)
-library(here)
-library(paletteer)
-library(ggpubr)
-library(readxl)
-library(janitor)
-library(patchwork)
-library(ggforce)
-library(lme4)
-library(emmeans)
-library(ssize.fdr)
-library(ggh4x)
-library(broom)
-library(effectsize)
-library(RColorBrewer)
-library(ComplexHeatmap)
-library(tidyverse)
-library(circlize)
-library(vegan)
+if (!require("pacman")) install.packages("pacman")
+
+pacman::p_load(
+  tidyverse, rstatix, ggsci, here, paletteer, ggpubr, 
+  readxl, janitor, patchwork, ggforce, lme4, emmeans, 
+  ssize.fdr, ggh4x, broom, effectsize, RColorBrewer, 
+  ComplexHeatmap, circlize, vegan
+)
 
 ```
 
