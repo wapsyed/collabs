@@ -1,0 +1,480 @@
+---
+title: "Raquel"
+output: html_document
+---
+
+#Importar pacotes
+```{r}
+library(tidyverse)
+library(rstatix)
+library(ggsci)
+library(here)
+library(paletteer)
+library(ggpubr)
+library(readxl)
+library(janitor)
+library(patchwork)
+library(ggforce)
+library(lme4)
+library(emmeans)
+library(ssize.fdr)
+library(ggh4x)
+library(broom)
+library(effectsize)
+library(RColorBrewer)
+library(ComplexHeatmap)
+library(tidyverse)
+library(circlize)
+library(vegan)
+
+```
+
+
+# Importar e preparar tabelas
+```{r}
+#Importar tabelas ==================
+#Pools
+Pool_7_8_9_11 <- read_excel(here("Colaborações", "Raquel", "Planilhas_Metatranscrip/Pool-7-8-9-11.xls")) %>% 
+  clean_names() %>% 
+  rename(pool_id = p) %>% 
+  #Facilitar visualização do nome da espécie
+  separate(strain_name, into = c("strain_name_short", "strain_name_other"), sep = " / ", remove = F) %>% 
+  mutate(strain_name_other = if_else(is.na(strain_name_other), strain_name_short, strain_name_other))
+
+#Resumo do processamento
+tabela_reads <- tribble(
+  ~pool_id, ~pe_reads,     ~pe_reads_trimmed, ~pe_reads_virais, ~reads_virais_pct, ~contigs_virais,
+  #--|-----------|------------------|----------------|-----------------|----------------
+  1,        113551810,   110610540,         499296,          0.44,             1013,
+  2,        105916460,   103290082,         277280,          0.26,             1226,
+  3,        119350844,   118287460,         339479,          0.28,             821,
+  4,        101610124,   99348082,          442197,          0.44,             769
+)
+
+#Processar tabelas =========
+# Unir as tabelas e calcular RPM
+pool_reads_rpm <- Pool_7_8_9_11 %>%
+  left_join(tabela_reads, by = "pool_id") %>%
+  mutate(rpm = (nb_reads / pe_reads_trimmed) * 1e6)
+
+# Visualizar
+pool_reads_rpm %>% 
+  select(strain_name, nb_reads, pe_reads_trimmed, rpm)
+
+#Salvar tabela
+pool_reads_rpm %>% 
+  writexl::write_xlsx(path = here("Colaborações", "Raquel", "Tabelas processadas", "pool_reads_rpm.xlsx"))
+```
+
+
+#Análises
+
+## Correlação
+```{r fig.height=5, fig.width=5}
+#Scatter plots
+#Pearson correlation
+pool_reads_rpm_plot = pool_reads_rpm %>%
+  mutate(pool_usp = fct_reorder(as.character(pool_usp), pool_usp)) %>% 
+  ggplot() +
+  aes(x = depth_of_coverage,
+      y = rpm,
+        color = pool_usp,
+      fill = pool_usp) +
+    labs(x = "Depth of Coverage",
+       y = "RPM",
+       color = "Pool",
+       fill = "Pool",
+       title = "RPM by Depth of Coverage",
+       subtitle = "Pearson correlation") +
+  geom_point(alpha = 0.2,
+             pch = 21) +
+  theme_pubr() +
+  stat_smooth(method = "lm") +
+  scale_fill_npg() +
+  scale_color_npg() +
+  scale_x_continuous(expand = c(0.01, 0.01)) +
+  scale_y_continuous(expand = c(0.01, 0.01))
+
+
+#Spearman's rank correlation
+pool_reads_rpm_ranks_plot = pool_reads_rpm %>%
+  mutate(pool_usp = fct_reorder(as.character(pool_usp), pool_usp)) %>% 
+  ggplot() +
+  aes(x = rank(depth_of_coverage),
+      y = rank(rpm),
+      color = pool_usp,
+      fill = pool_usp) +
+  labs(x = "Depth of Coverage, in ranks",
+       y = "RPM, in ranks",
+       color = "Pool",
+       fill = "Pool",
+       title = "RPM by Depth of Coverage",
+       subtitle = "Spearman correlation") +
+  geom_point(alpha = 0.2,
+             pch = 21) +
+  theme_pubr() +
+  stat_smooth(method = "lm") +
+  scale_fill_npg() +
+  scale_color_npg() +
+  scale_x_continuous(expand = c(0.01, 0.01)) +
+  scale_y_continuous(expand = c(0.01, 0.01))
+
+#Salvar plots
+
+pool_reads_rpm_plot %>% 
+  ggsave(file = here("Colaborações", "Raquel", "Figuras", "pool_reads_rpm_plot.png"),
+         width = 5,
+         height = 5)
+
+pool_reads_rpm_ranks_plot %>% 
+  ggsave(file = here("Colaborações", "Raquel", "Figuras", "pool_reads_rpm_ranks_plot.png"),
+         width = 5,
+         height = 5)
+
+```
+
+
+
+
+## Diversidade ecológica
+```{r fig.height=5, fig.width=5}
+
+#Preparar matriz
+matriz_diversidade <- pool_reads_rpm %>%
+  select(strain_name_short, pool_id, rpm) %>%
+  pivot_wider(names_from = strain_name_short, 
+              values_from = rpm, 
+              values_fn = median,
+              values_fill = 0) %>%
+  column_to_rownames("pool_id") %>%
+  as.matrix()
+
+# 1. Índice de Shannon
+shannon <- diversity(matriz_diversidade, index = "shannon")
+
+# 2. Riqueza de Espécies (Número de espécies observadas por pool)
+riqueza <- specnumber(matriz_diversidade)
+
+# 3. Índice de Simpson (Mede dominância, varia de 0 a 1)
+simpson <- diversity(matriz_diversidade, index = "simpson")
+
+# 4. Equitabilidade de Pielou (J') - Quão distribuídas estão as reads
+# J' = H' / log(S)
+pielou <- shannon / log(riqueza)
+
+# Reunir tudo em uma tabela para visualização
+table_diversity <- tibble(
+  pool_id = names(shannon),
+  Shannon = shannon,
+  Simpson = simpson,
+  Richness = riqueza,
+  Pielou = pielou
+)
+
+#Visualizar tabela
+table_diversity
+
+#Salvar tabela
+table_diversity %>% 
+  writexl::write_xlsx(path = here("Colaborações", "Raquel", "Tabelas processadas", "diversity_indices.xlsx"))
+
+# Gráfico de barras
+diversity_indices_plot = table_diversity %>% 
+  pivot_longer(cols = c(Shannon, Simpson, Richness, Pielou),
+               names_to = "index", values_to = "value") %>% 
+  ggplot(aes(x = pool_id, y = value, fill = pool_id)) +
+  facet_wrap(~paste0(index, " index"),
+             scales = "free") +
+  geom_col() +
+  theme_pubr() +
+  labs(title = "Diversity indices, by pool",
+       x = "Pool ID",
+       y = "Value") +
+  scale_fill_npg() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme(legend.position = "none",
+        strip.background = element_blank(),
+        strip.text = element_text(size = 12)) +
+  geom_text(aes(label = round(value, 2)),
+            vjust = 1.5,
+            size = 3,
+            color = "white", fontface = "bold")
+
+#Visualizar
+diversity_indices_plot
+
+#Salvar
+diversity_indices_plot %>% 
+  ggsave(file = here("Colaborações", "Raquel", "Figuras", "diversity_indices_plot.png"),
+         width = 5,
+         height = 5)
+
+```
+
+
+
+
+
+##Heatmaps
+
+### Por família
+```{r fig.height=6, fig.width=6}
+#Heatmaps =============
+#Famílias -------------------------
+# 1. Preparação dos dados e extração das famílias corretas
+df_familia <- pool_reads_rpm %>%
+  group_by(familia) %>%
+  summarise(total_rpm = sum(rpm, na.rm = T)) %>% 
+  arrange(desc(total_rpm))
+
+# 2. Transformar em matriz (Espécie x Pool)
+matriz_heatmap <- pool_reads_rpm %>%
+  filter(familia %in% df_top$familia) %>%
+  select(familia, pool_id, rpm) %>%
+  pivot_wider(names_from = pool_id, 
+              values_from = rpm, 
+              values_fn = median,
+              values_fill = 0) %>%
+  column_to_rownames("familia") %>%
+  as.matrix()
+
+# 3. Sincronizar a ordem: Garantir que os dados da anotação sigam a ordem da matriz
+familias_alinhadas <- df_top$familia[match(rownames(matriz_heatmap), df_top$familia)]
+
+# 4. Transformação Logarítmica
+matriz_log <- log10(matriz_heatmap + 1)
+
+# 5. Cores
+col_fun = colorRamp2(c(0, max(matriz_log)/2, max(matriz_log)), c("white", "red", "black"))
+
+#Plotar e salvar como pdf
+pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_top100.pdf"), width = 6, height = 6)
+ht_familia = Heatmap(matriz_log, 
+        name = "log10(RPM+1)", 
+        col = col_fun,
+        cluster_rows = TRUE, 
+        cluster_columns = TRUE, 
+        border = "black",
+        width = unit(1.5, "cm"), 
+        height = unit(10, "cm"),
+         rect_gp = gpar(col = "white", lwd = 2),
+        row_names_gp = gpar(fontsize = 8, fontface = "italic"),
+        column_names_gp = gpar(fontsize = 8),  column_names_centered = T,
+        column_names_rot = 0,
+        column_title = "Abundância Viral por Pool (RPM),\npor família.", 
+        column_title_gp = gpar(fontsize = 8, fontface = "bold"),
+        row_gap = unit(1, "mm")
+)
+
+
+draw(ht_familia, heatmap_legend_side = "right")
+dev.off()
+```
+
+
+### Todas as espécies
+```{r fig.height=25, fig.width=8}
+#Todas as espécies ------------------------------
+# 1. Preparação dos dados
+df_top <- pool_reads_rpm %>%
+  group_by(strain_name_short) %>%
+  summarise(total_rpm = sum(rpm), 
+            # Pegamos a família associada a cada espécie
+            familia = first(familia)) %>% 
+  arrange(desc(total_rpm)) 
+
+# 2. Transformar em matriz (Espécie x Pool)
+matriz_heatmap <- pool_reads_rpm %>%
+  filter(strain_name_short %in% df_top$strain_name_short) %>%
+  select(strain_name_short, pool_id, rpm) %>%
+  pivot_wider(names_from = pool_id, 
+              values_from = rpm, 
+              values_fn = median,
+              values_fill = 0) %>%
+  column_to_rownames("strain_name_short") %>%
+  as.matrix()
+
+# 3. Sincronizar a ordem: Garantir que os dados da anotação sigam a ordem da matriz
+familias_alinhadas <- df_top$familia[match(rownames(matriz_heatmap), df_top$strain_name_short)]
+
+# 4. Transformação Logarítmica
+matriz_log <- log10(matriz_heatmap + 1)
+
+# 5. Cores
+col_fun = colorRamp2(c(0, max(matriz_log)/2, max(matriz_log)), c("white", "red", "black"))
+
+familias_unicas <- unique(familias_alinhadas)
+cores_familia <- setNames(
+  colorRampPalette(brewer.pal(25, "Set3"))(length(familias_unicas)),
+  familias_unicas
+)
+
+# 6. Criar a anotação de linha corretamente
+ha_linhas = rowAnnotation(
+  Familia = familias_alinhadas, 
+  col = list(Familia = cores_familia),
+  show_annotation_name = TRUE,
+  
+  # Diminuir a largura da barra de cor (ex: 3mm)
+  width = unit(2, "cm"), 
+  
+  # Ajustar a fonte do nome da anotação ("Familia") que fica no topo/lado
+  annotation_name_gp = gpar(fontsize = 10),
+  
+  # Diminuir a fonte da legenda da Família
+  annotation_legend_param = list(
+    Familia = list(
+      title_gp = gpar(fontsize = 10, fontface = "bold"), # Título da legenda
+      labels_gp = gpar(fontsize = 10),                 # Itens da legenda
+      grid_width = unit(2, "mm"),                     # Largura do quadradinho da legenda
+      grid_height = unit(1, "mm")                     # Altura do quadradinho da legenda
+    )
+  )
+)
+
+#Plotar e salvar como pdf
+pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_all.pdf"), width = 10, height = 26)
+ht_all = Heatmap(matriz_log, 
+        name = "log10(RPM+1)", 
+        col = col_fun,
+        left_annotation = ha_linhas, # Adiciona a cor das famílias
+        # Agrupamento (Clustering)
+        cluster_rows = TRUE, 
+        cluster_columns = TRUE, 
+        border = "black",
+        
+        # Estética
+        width = unit(2, "cm"),  # Largura total do corpo do heatmap
+        height = unit(60, "cm"), # Altura total do corpo do heatmap
+         rect_gp = gpar(col = "white", lwd = 1),
+        row_names_gp = gpar(fontsize = 6, fontface = "italic"),
+        column_names_gp = gpar(fontsize = 10),  column_names_centered = T,
+        column_names_rot = 0,
+        column_title = "Abundância Viral por Pool (RPM),\n Top 100.", 
+        column_title_gp = gpar(fontsize = 10, fontface = "bold"),
+        row_split = 2, 
+        row_gap = unit(1, "mm")
+)
+
+draw(ht_all, heatmap_legend_side = "right")
+
+# 3. Fechar o dispositivo gráfico (Obrigatório para o arquivo ser gravado)
+dev.off()
+```
+
+
+### Top 100 espécies
+```{r fig.height=15, fig.width=8}
+# Top espécies ------------------------------
+# 1. Preparação dos dados e extração das famílias corretas
+df_top <- pool_reads_rpm %>%
+  group_by(strain_name_short) %>%
+  summarise(total_rpm = sum(rpm), 
+            # Pegamos a família associada a cada espécie
+            familia = first(familia)) %>% 
+  arrange(desc(total_rpm)) %>%
+  slice_head(n = 100)
+
+# 2. Transformar em matriz (Espécie x Pool)
+matriz_heatmap <- pool_reads_rpm %>%
+  filter(strain_name_short %in% df_top$strain_name_short) %>%
+  select(strain_name_short, pool_id, rpm) %>%
+  pivot_wider(names_from = pool_id, 
+              values_from = rpm, 
+              values_fn = median,
+              values_fill = 0) %>%
+  column_to_rownames("strain_name_short") %>%
+  as.matrix()
+
+# 3. Sincronizar a ordem: Garantir que os dados da anotação sigam a ordem da matriz
+# (Importante se o cluster_rows for FALSE ou para criar o vetor de famílias)
+familias_alinhadas <- df_top$familia[match(rownames(matriz_heatmap), df_top$strain_name_short)]
+
+# 4. Transformação Logarítmica
+matriz_log <- log10(matriz_heatmap + 1)
+
+# 5. Cores
+col_fun = colorRamp2(c(0, max(matriz_log)/2, max(matriz_log)), c("white", "red", "black"))
+
+familias_unicas <- unique(familias_alinhadas)
+cores_familia <- setNames(
+  colorRampPalette(brewer.pal(25, "Set3"))(length(familias_unicas)),
+  familias_unicas
+)
+
+# 6. Criar a anotação de linha corretamente
+ha_linhas = rowAnnotation(
+  Familia = familias_alinhadas, 
+  col = list(Familia = cores_familia),
+  show_annotation_name = TRUE,
+  
+  # Diminuir a largura da barra de cor (ex: 3mm)
+  width = unit(2, "cm"), 
+  
+  # Ajustar a fonte do nome da anotação ("Familia") que fica no topo/lado
+  annotation_name_gp = gpar(fontsize = 10),
+  
+  # Diminuir a fonte da legenda da Família
+  annotation_legend_param = list(
+    Familia = list(
+      title_gp = gpar(fontsize = 10, fontface = "bold"), # Título da legenda
+      labels_gp = gpar(fontsize = 10),                 # Itens da legenda
+      grid_width = unit(2, "mm"),                     # Largura do quadradinho da legenda
+      grid_height = unit(1, "mm")                     # Altura do quadradinho da legenda
+    )
+  )
+)
+
+#Plotar e salvar como pdf
+pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_familias.pdf"), width = 10, height = 16)
+ht_especies_top = Heatmap(matriz_log, 
+        name = "log10(RPM+1)", 
+        col = col_fun,
+        left_annotation = ha_linhas, # Adiciona a cor das famílias
+        # Agrupamento (Clustering)
+        cluster_rows = TRUE, 
+        cluster_columns = TRUE, 
+        row_split = 2, 
+        row_gap = unit(1, "mm"),
+        border = "black",
+        
+        # Estética
+        width = unit(2, "cm"),  # Largura total do corpo do heatmap
+        height = unit(30, "cm"), # Altura total do corpo do heatmap
+         rect_gp = gpar(col = "white", lwd = 1),
+        row_names_gp = gpar(fontsize = 8, fontface = "italic"),
+        column_names_gp = gpar(fontsize = 10),  column_names_centered = T,
+        column_names_rot = 0,
+        column_title = "Abundância Viral por Pool (RPM),\n Top 100.", 
+        column_title_gp = gpar(fontsize = 10, fontface = "bold")
+)
+
+
+draw(ht_especies_top, heatmap_legend_side = "right")
+# 3. Fechar o dispositivo gráfico (Obrigatório para o arquivo ser gravado)
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
