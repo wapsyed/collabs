@@ -235,7 +235,7 @@ matriz_log <- log10(matriz_heatmap + 1)
 col_fun = colorRamp2(c(0, max(matriz_log)/2, max(matriz_log)), c("white", "red", "black"))
 
 #Plotar e salvar como pdf
-pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_top100.pdf"), width = 6, height = 6)
+pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_familia.pdf"), width = 6, height = 6)
 ht_familia = Heatmap(matriz_log, 
         name = "log10(RPM+1)", 
         col = col_fun,
@@ -345,7 +345,6 @@ ht_all = Heatmap(matriz_log,
 
 draw(ht_all, heatmap_legend_side = "right")
 
-# 3. Fechar o dispositivo gráfico (Obrigatório para o arquivo ser gravado)
 dev.off()
 ```
 
@@ -413,7 +412,7 @@ ha_linhas = rowAnnotation(
 )
 
 #Plotar e salvar como pdf
-pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_familias.pdf"), width = 10, height = 16)
+pdf(here("Colaborações", "Raquel", "Figuras", "heatmap_viral_top100.pdf"), width = 10, height = 16)
 ht_especies_top = Heatmap(matriz_log, 
         name = "log10(RPM+1)", 
         col = col_fun,
@@ -438,7 +437,6 @@ ht_especies_top = Heatmap(matriz_log,
 
 
 draw(ht_especies_top, heatmap_legend_side = "right")
-# 3. Fechar o dispositivo gráfico (Obrigatório para o arquivo ser gravado)
 dev.off()
 ```
 
