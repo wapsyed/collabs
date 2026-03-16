@@ -838,6 +838,7 @@ library(nlme) # Para modelos com variâncias heterogêneas
 
 anova.res <- citometria_clean %>%
   group_by(teste, marcador) %>%
+  filter(condicao != "Vac 50μg") %>% 
   group_modify(~ {
     # gls permite pesos (weights) para variâncias diferentes por grupo
     # O + experimento faz o ajuste do efeito de lote
@@ -885,6 +886,7 @@ anova.res
 
 #Utilizando modelos mistos com ajuste por lote de experimentos
 stat.test_cd4 <- citometria_clean %>%
+  filter(condicao != "Vac 50μg") %>% 
   filter(teste == "CD4") %>%
   group_by(marcador) %>% 
   group_modify(~ {
@@ -925,6 +927,7 @@ stat.test_cd4 <- citometria_clean %>%
 
 #PLOT
 citometria_plot_CD4 = citometria_clean %>%
+  filter(condicao != "Vac 50μg") %>% 
   filter(teste == "CD4") %>%
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
@@ -973,13 +976,15 @@ citometria_plot_CD4 = citometria_clean %>%
                                   color = "black",
                                   angle = 0),
         axis.line.x = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
         ggh4x.axis.nestline = element_line(linetype =1), 
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
-        axis.line.y = element_line(color = "black",
-                                   size = 1),
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
         panel.grid.major.x = element_blank()) +
@@ -999,7 +1004,7 @@ stat_pvalue_manual(
     bracket.size = 0.3, 
     tip.length = 0,
     step.increase = 0.05,    # Espaço entre barras para não encavalar
-    size = 2.5
+    size = 3
   ) +
    scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
@@ -1055,6 +1060,7 @@ CD8
 #Utilizando modelos mistos com ajuste por lote de experimentos
 stat.test_cd8 <- citometria_clean %>%
   filter(teste == "CD8") %>%
+  filter(condicao != "Vac 50μg") %>% 
   group_by(marcador) %>% 
   group_modify(~ {
     # 1. Ajuste do modelo
@@ -1095,6 +1101,7 @@ stat.test_cd8 <- citometria_clean %>%
 #PLOT
 citometria_plot_CD8 = citometria_clean %>%
   filter(teste == "CD8") %>%
+  filter(condicao != "Vac 50μg") %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
   mutate(grupo_n = fct_inorder(grupo_n)) %>% 
@@ -1149,13 +1156,15 @@ citometria_plot_CD8 = citometria_clean %>%
                                   color = "black",
                                   angle = 0),
         axis.line.x = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
         ggh4x.axis.nestline = element_line(linetype =1), 
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
-        axis.line.y = element_line(color = "black",
-                                   size = 1),
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
         panel.grid.major.x = element_blank()) +
@@ -1166,7 +1175,7 @@ citometria_plot_CD8 = citometria_clean %>%
     bracket.size = 0.3, 
     tip.length = 0,
     step.increase = 0.05, 
-    size = 2.5
+    size = 3
   ) +
    scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
@@ -1278,7 +1287,7 @@ citometria_clean_boxplots = citometria_exp1 %>%
        y = "Absorbancia",
        fill = "Grupos",
        color = "Experimento") +
-    theme(text = element_text(size = 10,
+  theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
                                     color = "black",
@@ -1288,11 +1297,8 @@ citometria_clean_boxplots = citometria_exp1 %>%
           legend.box.margin=margin(0,0,-10,0),
           legend.text = element_text(size = 10, hjust = 0),
           legend.title = element_text(size = 10),
-        axis.text.x = element_text(
-          # angle = 45,
-                                   size = 10,
-                                   # hjust = 1,
-                                   # vjust = 1,
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
                                    color = "black"),
         axis.text.y = element_text(size = 10,
                                    color = "black"),
@@ -1301,14 +1307,19 @@ citometria_clean_boxplots = citometria_exp1 %>%
         strip.text.y = element_text(size = 10,
                                   color = "black",
                                   angle = 0),
-        axis.line = element_line(color = "black",
+        axis.line.x = element_line(color = "black",
                                    size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
-        panel.grid.major.y   = element_line(linetype = 2,
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
+        panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
-        panel.grid.major.x = element_blank(),
-        ggh4x.axis.nestline = element_line(linetype =1)) +
+        panel.grid.major.x = element_blank()) +
   scale_fill_manual(values = c("PBS" = "white",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
@@ -1349,7 +1360,7 @@ ggsave(filename = here("Colaborações", "Evelyn", "Citometria_CD4_CD8_Exp1.png"
 #Teste de Shapiro-Wilk
 ## p<0.05: Não-normal
 ## p>0.05: Normal
-table %>% 
+ELISA_OD50_long_annotated %>% 
   filter(!grupo %in% c("QB", "PBS")) %>% 
   group_by(grupo) %>% 
   shapiro_test(valor_log) %>% 
@@ -1357,7 +1368,8 @@ table %>%
 
 
 # Q-Q Plot
-qq_plot = table %>% 
+qq_plot = ELISA_OD50_long_annotated %>% 
+    filter(condicao != "Vac 50μg") %>% 
   arrange(grupo_n) %>% 
   mutate(condicao = fct_inorder(condicao)) %>% 
 ggplot(aes(sample = valor_log,
@@ -1387,29 +1399,39 @@ ggplot(aes(sample = valor_log,
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
-    theme(text = element_text(size = 10,
+  theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
                                     color = "black",
                                     hjust = 0.5),
-        legend.position = "none",
-        panel.spacing.x = unit(0, "lines"),
-        plot.margin = margin(0, 0.3, 0, 0, unit = "cm"),
-        axis.text.x = element_text(angle = 0,
-                                   size = 10,
+        legend.position = "top",
+        legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-10,0),
+          legend.text = element_text(size = 10, hjust = 0),
+          legend.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
                                    color = "black"),
         axis.text.y = element_text(size = 10,
                                    color = "black"),
         strip.text = element_text(size = 10,
                                   color = "black"),
-        strip.text.y = element_text(size = 10, hjust = 0, vjust = 0.5, angle = 0),
-        axis.line = element_line(color = "black",
+        strip.text.y = element_text(size = 10,
+                                  color = "black",
+                                  angle = 0),
+        axis.line.x = element_line(color = "black",
                                    size = 0.5),
-        axis.ticks = element_line(color = "black",
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+        axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
                                   size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
-        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1)) +
+        panel.grid.major.x = element_blank()) +
   labs(x = "",
        y = "",
        title = "Q-Q Plot - ELISA OD50")
@@ -1477,7 +1499,8 @@ library(rstatix)
 #   inner_join(effect_size, by = c("dia", "group1", "group2"))
 
 #Utilizando modelos mistos com ajuste por lote de experimentos
-stat.test <- table %>%
+stat.test <- ELISA_OD50_long_annotated %>%
+    filter(condicao != "Vac 50μg") %>% 
   group_by(dia) %>% 
   group_modify(~ {
     # 1. Ajuste do modelo
@@ -1505,7 +1528,7 @@ stat.test <- table %>%
   group_by(dia) %>% 
   #Add posições
   add_xy_position(
-    data = table, 
+    data = ELISA_OD50_long_annotated, 
     x = "grupo_n", 
     formula = valor_log ~ grupo_n,
     step.increase = 0, 
@@ -1519,7 +1542,8 @@ stat.test <- table %>%
          !str_detect(group2,"QB|PBS")) 
 
 #Plot
-plot = table %>% 
+plot = ELISA_OD50_long_annotated %>% 
+    filter(condicao != "Vac 50μg") %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
   mutate(grupo_n = fct_inorder(grupo_n)) %>% 
@@ -1562,7 +1586,7 @@ plot = table %>%
     hide.ns = TRUE, 
     bracket.size = 0.3, 
     tip.length = 0.0,
-    size = 2.5,
+    size = 3,
     vjust = 0.5,
     step.increase = 0.05,
   ) +
@@ -1589,13 +1613,15 @@ plot = table %>%
                                   color = "black",
                                   angle = 0),
         axis.line.x = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
         ggh4x.axis.nestline = element_line(linetype =1), 
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
         axis.line.y = element_line(color = "black",
-                                   size = 1),
+                                   size = 0.5),
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
         panel.grid.major.x = element_blank()) +
@@ -1622,71 +1648,13 @@ plot
 ##### Teste de diferenças
 
 ```{r fig.height=4, fig.width=10}
-# library(rstatix) 
-# library(lme4)
-# library(emmeans)
-# modelo <- lmer(valor_log ~ grupo_n * dia + (1|animal_id), 
-#                data = table %>% 
-#                  filter(!grupo %in% c("QB", "PBS")))
-# 
-# 
-# anova_summary <- 
-#   anova(modelo)
-# 
-# # Comparar dias dentro de cada grupo
-# post_hoc <- emmeans(modelo, pairwise ~ dia | grupo_n, adjust = "tukey")
-# 
-# 
-# # Transformar em uma tabela formatada (estilo rstatix)
-# stat.test_misto <- as_tibble(post_hoc$contrasts) %>%
-#   # Limpa o nome do dia se ele vier como "dia 14"
-#   mutate(contrast = str_remove_all(contrast, "dia")) %>% 
-#   separate(contrast, into = c("group1", "group2"), sep = " - ") %>%
-#   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>%
-#   mutate(
-#     p.adj.signif = case_when(
-#       p.value <= 0.001 ~ "***",
-#       p.value <= 0.01  ~ "**",
-#       p.value <= 0.05  ~ "*",
-#       TRUE             ~ "ns"
-#     )
-#   ) %>%
-  # # Importante: para stat_pvalue_manual, xmin e xmax devem ser as categorias do eixo X (dia)
-  # mutate(
-  #   xmin = group1,
-  #   xmax = group2,
-  #   y.position = max(table$valor_log, na.rm = TRUE) + 0.2
-  # ) %>%
-  # filter(p.adj.signif != "ns") %>%
-  # mutate(
-  #   y.position = max(table$valor_log, na.rm = TRUE) +
-  #                0.2 + 0.15 * row_number()
-  # )
-# 
-# stat.test_misto
-# 
-# 
-# # Calcular Effect Size 
-# effect_size <- table %>%
-#   group_by(grupo_n) %>%
-#   filter(!grupo %in% c("QB", "PBS")) %>% 
-#   cohens_d(valor_log ~ dia, var.equal = FALSE) %>% 
-#   mutate(effsize = round(effsize, 1)) 
-# 
-# # Join final
-# stat.test_misto_final <- stat.test_misto %>% 
-#   # inner_join(effect_size, by = c("grupo_n", "group1", "group2")) %>% 
-#   mutate(grupo_n = fct_relevel(grupo_n, c(table %>% 
-#                                  arrange(grupo, dose) %>% 
-#                                  mutate(grupo_n = fct_inorder(grupo_n)) %>% 
-#                                  pull(grupo_n) %>% 
-#                                  levels()))
-#          )
+
 
 
 #Utilizando modelos mistos com ajuste por lote de experimentos
-stat.test <- table %>%
+stat.test <- ELISA_OD50_long_annotated %>%
   filter(!grupo %in% c("QB", "PBS")) %>% 
+    filter(condicao != "Vac 50μg") %>% 
   group_modify(~ {
     # 1. Ajuste do modelo
     mod <- lmer(valor_log ~ grupo_n*dia + (1|experimento), data = .x)
@@ -1721,9 +1689,9 @@ stat.test <- table %>%
     # filter(!str_detect(grupo_n,"QB|PBS")) %>% 
   mutate(group1 = str_remove_all(group1, "dia"),
          group2 = str_remove_all(group2, "dia")) %>% 
-  mutate(grupo_n = fct_relevel(grupo_n, str_replace_all(table$grupo_n %>% levels(), " ", "\n"))) %>% 
+  mutate(grupo_n = fct_relevel(grupo_n, str_replace_all(ELISA_OD50_long_annotated$grupo_n %>% levels(), " ", "\n"))) %>% 
   group_by(grupo_n) %>% 
-  mutate(y.position = max(table$valor_log, na.rm = TRUE) +
+  mutate(y.position = max(ELISA_OD50_long_annotated$valor_log, na.rm = TRUE) +
                  0.2 + 0.15 * row_number()) %>% 
   ungroup()
  
@@ -1731,7 +1699,8 @@ stat.test <- table %>%
 
 stat.test
 
-plot_group = table %>% 
+plot_group = ELISA_OD50_long_annotated %>% 
+    filter(condicao != "Vac 50μg") %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
   mutate(
@@ -1739,7 +1708,7 @@ plot_group = table %>%
   ) %>% 
   ggplot(aes(x = dia, y = valor_log)) + 
   
-  facet_grid(
+  facet_grid( 
     ~grupo_n, 
     space  = "free_x",
     scales = "free_x",
@@ -1780,7 +1749,7 @@ plot_group = table %>%
     y.position = "y.position",
     bracket.size = 0.3, 
     tip.length = 0.0,
-    size = 2.5,
+    size = 3,
     vjust = 0,
     step.increase = 0.05,
   ) +
@@ -1813,7 +1782,10 @@ plot_group = table %>%
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
 
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
+                                  size = 0.5),
+        
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
         panel.grid.major.x = element_blank()) +
@@ -1882,7 +1854,7 @@ ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_ByGroup_ByDay.png
 
 ```{r}
 
-elisa_od50_exp1 = table %>% 
+elisa_od50_exp1 = ELISA_OD50_long_annotated %>% 
   filter(experimento == "Exp1") %>% 
   #Add summary statistics
   group_by(teste, dia, grupo, dose) %>% 
@@ -1949,11 +1921,14 @@ plot = elisa_od50_exp1 %>%
                                   angle = 0),
         axis.line.x = element_line(color = "black",
                                    size = 0.5),
-        ggh4x.axis.nestline = element_line(linetype =1), 
-        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
         axis.line.y = element_line(color = "black",
                                    size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+
         axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
                                   size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
@@ -2040,7 +2015,9 @@ plot_group = elisa_od50_exp1 %>%
         ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
 
         axis.ticks.x = element_line(color = "black",
-                                  size = 1),
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
         panel.grid.major.x = element_blank()) +
@@ -2121,6 +2098,7 @@ igg_subclasses_anotado %>%
 qq_plot = igg_subclasses_anotado %>% 
   arrange(grupo_n) %>% 
   mutate(condicao = fct_inorder(condicao)) %>% 
+  filter(condicao != "Vac 50μg") %>% 
 ggplot(aes(sample = valor_log,
            color = grupo,
            fill = grupo)) +
@@ -2148,29 +2126,40 @@ ggplot(aes(sample = valor_log,
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
-    theme(text = element_text(size = 10,
+      theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
                                     color = "black",
                                     hjust = 0.5),
-        legend.position = "none",
-        panel.spacing.x = unit(0, "lines"),
-        plot.margin = margin(0, 0.3, 0, 0, unit = "cm"),
-        axis.text.x = element_text(angle = 0,
-                                   size = 10,
+        legend.position = "top",
+        legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-10,0),
+          legend.text = element_text(size = 10, hjust = 0),
+          legend.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
                                    color = "black"),
         axis.text.y = element_text(size = 10,
                                    color = "black"),
         strip.text = element_text(size = 10,
                                   color = "black"),
-        strip.text.y = element_text(size = 10, hjust = 0, vjust = 0.5, angle = 0),
-        axis.line = element_line(color = "black",
+        strip.text.y = element_text(size = 10,
+                                  color = "black",
+                                  angle = 0),
+        axis.line.x = element_line(color = "black",
                                    size = 0.5),
-        axis.ticks = element_line(color = "black",
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+
+        axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
                                   size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
-        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1)) +
+        panel.grid.major.x = element_blank()) +
   labs(x = "",
        y = "",
        title = "Q-Q Plot - IgG-1,2")
@@ -2191,55 +2180,9 @@ ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_subtypes_qqpl
 
 ##### Teste de diferenças
 ```{r fig.height=8, fig.width=12}
-# library(rstatix) 
-# anova_summary <- igg_subclasses_anotado %>%
-#  # filter(!grupo %in% c("QB", "PBS")) %>% 
-#   group_by(teste) %>%
-#   welch_anova_test(valor_log ~ grupo_n)
-# 
-# stat.test_dia = igg_subclasses_anotado %>% 
-#   filter(!grupo %in% c("QB", "PBS")) %>%
-#     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
-#          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-#   group_by(teste) %>%
-#   games_howell_test(valor_log ~ grupo_n, 
-#             detailed = T) %>% 
-#   group_by(teste) %>%
-#   add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>% 
-#   ungroup() %>% 
-#   mutate(p.adj.signif = case_when(
-#       p.adj <= 0.01 ~ "***",       # p <= 0.01
-#       p.adj <= 0.05 ~ "**",        # 0.01 < p <= 0.05
-#       p.adj <= 0.10 ~ "*",         # 0.05 < p <= 0.10
-#       TRUE ~ "ns"                        # p > 0.10
-#     )
-#   ) %>% 
-#   group_by(teste) %>% 
-#   mutate(
-#     xmin = group1,
-#     xmax = group2,
-#     y.position = max(igg_subclasses_anotado$valor_log, na.rm = TRUE) + 0.2 ) %>%
-#   ungroup() 
-#     # filter(!p.adj.signif %in% c("ns")) %>% 
-#     # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1) 
-# 
-# 
-# # 2. Calcular Effect Size 
-# effect_size <- igg_subclasses_anotado %>%
-#   filter(!grupo %in% c("QB", "PBS")) %>% 
-#     mutate(grupo_n = str_replace_all(grupo_n, " ", "\n"),
-#          grupo_n = str_replace_all(grupo_n, " ", "\n"),) %>% 
-#   group_by(teste) %>%
-#   cohens_d(valor_log ~ grupo_n, var.equal = FALSE) %>% 
-#   mutate(effsize = round(effsize, 1))
-# 
-# # Join final
-# stat.test<- stat.test_dia %>% 
-#   inner_join(effect_size, by = c("teste", "group1", "group2"))
-
-
 #Utilizando modelos mistos com ajuste por lote de experimentos
 stat.test <- igg_subclasses_anotado %>%
+  filter(condicao != "Vac 50μg") %>% 
   group_by(teste) %>% 
   group_modify(~ {
     # 1. Ajuste do modelo
@@ -2284,6 +2227,7 @@ stat.test <- igg_subclasses_anotado %>%
 
 ```{r fig.height=5, fig.width=10}
 plot = igg_subclasses_anotado %>% 
+  filter(condicao != "Vac 50μg") %>% 
   mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
   arrange(grupo, dose) %>% 
   mutate(grupo_n = fct_inorder(grupo_n)) %>% 
@@ -2328,7 +2272,7 @@ plot = igg_subclasses_anotado %>%
     tip.length = 0.0,
     step.increase = 0.1,
     vjust = 0.3,
-    size = 2.5
+    size = 3
   ) +
 
 # geom_violin(color = "gray10",
@@ -2340,7 +2284,7 @@ plot = igg_subclasses_anotado %>%
   #              width = 0.5) +
   
   theme_minimal() +
-  theme(text = element_text(size = 10,
+    theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
                                     color = "black",
@@ -2362,11 +2306,14 @@ plot = igg_subclasses_anotado %>%
                                   angle = 0),
         axis.line.x = element_line(color = "black",
                                    size = 0.5),
-        ggh4x.axis.nestline = element_line(linetype =1), 
-        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
         axis.line.y = element_line(color = "black",
                                    size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+
         axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
                                   size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
@@ -2393,11 +2340,11 @@ plot = igg_subclasses_anotado %>%
 
 plot
 
-# plot %>%
-# ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_ByGroup_Welch.png"),
-#        width = 10,
-#        height = 4,
-#        bg = "white")
+plot %>% 
+  ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_ByGroup.png"),
+       width = 5,
+       height = 8,
+       bg = "white")
 
 ```
 
@@ -2450,7 +2397,7 @@ plot = igg_subclasses_anotado_exp1 %>%
                alpha = 1,
                show.legend = F) +
   theme_minimal() +
-  theme(text = element_text(size = 10,
+    theme(text = element_text(size = 10,
                             color = "black"),
         plot.caption = element_text(size = 10, 
                                     color = "black",
@@ -2472,11 +2419,14 @@ plot = igg_subclasses_anotado_exp1 %>%
                                   angle = 0),
         axis.line.x = element_line(color = "black",
                                    size = 0.5),
-        ggh4x.axis.nestline = element_line(linetype =1), 
-        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
         axis.line.y = element_line(color = "black",
                                    size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+
         axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
                                   size = 0.5),
         panel.grid = element_line(linetype = 2,
                                   color = "gray90"),
