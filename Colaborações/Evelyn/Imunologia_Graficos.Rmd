@@ -31,7 +31,7 @@ library(effectsize)
 ```
 
 
-#Importar tabelas
+# 1.Importar tabelas
 ## Citometria
 ```{r}
 #Importar
@@ -136,7 +136,7 @@ citometria_clean
 citometria_clean$grupo
 
 citometria_clean %>% 
-  write_csv(file = here("Colaborações", "Evelyn", "citometria_clean.csv"))
+  saveRDS(file = here("Colaborações", "Evelyn", "citometria_clean.rds"))
 
 ```
 
@@ -239,6 +239,8 @@ ELISA_OD50_long_annotated = ELISA_OD50_long %>%
          grupo_n = fct_inorder(grupo_n))
 
 ELISA_OD50_long_annotated
+ELISA_OD50_long_annotated %>% 
+         saveRDS(file = here("Colaborações", "Evelyn", "ELISA_OD50_long_annotated.rds"))
 
 ```
 
@@ -339,6 +341,9 @@ mutate(
          grupo_n = fct_inorder(grupo_n))
 
 igg_subclasses_anotado
+
+igg_subclasses_anotado %>% 
+         saveRDS(file = here("Colaborações", "Evelyn", "igg_subclasses_anotado.rds"))
 
 ```
 
@@ -500,7 +505,7 @@ ggplot(cor_df, aes(x = var1, y = var2, fill = cor)) +
 
 
 
-# Design do estudo
+# 2. Design do estudo
 
 ## Power analysis
 Cohen's d Tamanho de efeito:
@@ -570,9 +575,6 @@ pwr.anova.test(
 
 
 ## Demografia
-
-
-
 
 ```{r fig.height=6, fig.width=2.2}
 experimentos_n_condicoes =  citometria_clean %>% 
@@ -644,13 +646,15 @@ experimentos_n_condicoes %>%
 ```
 
 
-# Citometria
+# 3. Citometria
 ##Todos os experimentos
 ### Distribuições
 ```{r fig.height=8, fig.width=10}
-
+citometria_clean =
+  readRDS(file = here("Colaborações", "Evelyn", "citometria_clean.rds"))
 #Identificar outliers
 citometria_clean %>% 
+  
   group_by(grupo, teste, marcador) %>% 
   identify_outliers(valor) 
 
@@ -758,12 +762,13 @@ citometria_clean %>%
 
 
 # Q-Q Plot
-qq_plot = citometria_clean %>% 
+qq_plot = citometria_clean %>%
+    filter(condicao != "Vac 50μg") %>% 
   arrange(grupo, dose) %>% 
   mutate(condicao = fct_inorder(condicao)) %>% 
 ggplot(aes(sample = valor,
-           color = grupo,
-           fill = grupo)) +
+           fill = grupo,
+           color = grupo)) +
   scale_x_continuous(expand = c(0.1,0.1), 
                      n.breaks = 3
                      ) +  
@@ -783,7 +788,7 @@ ggplot(aes(sample = valor,
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
                              "Alum" = "#ff5d8f"))+
-  scale_fill_manual(values = c("PBS" = "white",
+  scale_fill_manual(values = c("PBS" = "black",
                              "ED-III" = "#9f9fed",
                              "QB" = "#adf7b6",
                              "Vac" = "#a9def9",
@@ -793,7 +798,7 @@ ggplot(aes(sample = valor,
         plot.caption = element_text(size = 10, 
                                     color = "black",
                                     hjust = 0.5),
-        legend.position = "none",
+        legend.position = "top",
         panel.spacing.x = unit(0, "lines"),
         plot.margin = margin(0, 0.3, 0, 0, unit = "cm"),
         axis.text.x = element_text(angle = 0,
@@ -1347,7 +1352,7 @@ ggsave(filename = here("Colaborações", "Evelyn", "Citometria_CD4_CD8_Exp1.png"
 
 
 
-# ELISA OD50
+# 4. ELISA OD50
 
 
 
@@ -1418,6 +1423,7 @@ ggplot(aes(sample = valor_log,
                                   color = "black"),
         strip.text.y = element_text(size = 10,
                                   color = "black",
+                                  hjust = 0,
                                   angle = 0),
         axis.line.x = element_line(color = "black",
                                    size = 0.5),
@@ -2078,7 +2084,355 @@ ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_ByGroup_ByDay_Exp
 
 
 
-# IgG Subclasses
+
+##Experimentos 1 e 2
+
+```{r fig.height=8, fig.width=8}
+
+#Padronizar tabela
+elisa_od50_exp12 = ELISA_OD50_long_annotated %>% 
+  filter(experimento != "Exp3") %>% 
+  filter(condicao != "Vac 50μg") %>%
+  #Add summary statistics
+  group_by(teste, dia, grupo, dose) %>% 
+  mutate(n = n()) %>% 
+  ungroup() %>% 
+  mutate(grupo_n = paste0(condicao, " n=", n),
+         dose_n = paste0(dose, "\nn=", n)) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(dose_n = fct_inorder(dose_n),
+         grupo_n = fct_inorder(grupo_n))
+
+#Testes estatísticos
+
+anova_summary_dia <- elisa_od50_exp12 %>%
+ filter(!grupo %in% c("QB", "PBS")) %>%
+  group_by(dia, dose) %>%
+  anova_test(valor_log ~ grupo_n)
+
+stat.test_dia = elisa_od50_exp12 %>%
+  filter(!grupo %in% c("QB", "PBS")) %>%
+  group_by(dia) %>%
+  # games_howell_test(valor_log ~ grupo_n,
+  #           detailed = T) %>%
+  tukey_hsd(valor_log ~ grupo_n,
+            detailed = T) %>%
+  group_by(dia) %>%
+  add_xy_position(x = "grupo_n", step.increase = 0, scales = "free_y") %>%
+  ungroup() %>%
+  mutate(p.adj.signif = case_when(
+      p.adj <= 0.01 ~ "***",       # p <= 0.01
+      p.adj <= 0.05 ~ "**",        # 0.01 < p <= 0.05
+      p.adj <= 0.10 ~ "*",         # 0.05 < p <= 0.10
+      TRUE ~ "ns"                        # p > 0.10
+    )
+  ) %>%
+  group_by(dia) %>%
+  mutate(
+    xmin = group1,
+    xmax = group2,
+    y.position = max(elisa_od50_exp12$valor_log, na.rm = TRUE) + 0.2 
+    ) %>%
+  ungroup() %>% 
+      mutate(group1 = str_replace_all(group2, " ", "\n"),
+             group2 = str_replace_all(group2, " ", "\n"),
+             xmin = str_replace_all(xmin, " ", "\n"),
+             xmax = str_replace_all(xmax, " ", "\n"),) 
+
+    # filter(!p.adj.signif %in% c("ns")) %>%
+    # mutate(y.position = min(y.position) + (row_number() - 1) * 0.1)
+
+
+# Join final
+stat.test_dia
+
+
+#Por grupo, dia
+anova_summary_group = elisa_od50_exp12 %>%
+ # filter(!grupo %in% c("QB", "PBS")) %>%
+  group_by(grupo_n) %>%
+  kruskal_test(valor_log ~ dia) %>% 
+  rename(p_anova = p) %>% 
+  mutate(statistic = if_else(is.nan(statistic), NA_integer_, statistic))
+# mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) 
+
+stat.test_grupo = elisa_od50_exp12 %>%
+  filter(!grupo %in% c("QB", "PBS")) %>%
+  group_by(grupo_n) %>%
+  dunn_test(valor_log ~ dia, p.adjust.method = "BH") %>%
+  group_by(grupo_n) %>%
+  add_xy_position(x = "dia", data = elisa_od50_exp12, step.increase = 0.12) %>%
+  # Criar a coluna de estrelas personalizada
+  mutate(p.adj.signif = case_when(
+      p.adj <= 0.01 ~ "***",
+      p.adj <= 0.05 ~ "**",
+      p.adj <= 0.10 ~ "*",
+      TRUE ~ "ns"
+    )
+  ) %>%
+  group_by(grupo_n) %>%
+  mutate(
+    xmin = group1,
+    xmax = group2) %>%
+  ungroup() %>% 
+  #Unir com anova, para aparecer no gráfico
+  left_join(anova_summary_group,
+             by = "grupo_n", suffix = c("_dunn", "_anova"))
+
+
+# Join final
+stat.test_grupo
+anova_summary_group
+```
+
+
+```{r fig.height=8, fig.width=8}
+#Plot
+plot = elisa_od50_exp12 %>% 
+  mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(grupo_n = fct_inorder(grupo_n)) %>% 
+  ggplot() +
+  aes(x = grupo_n,
+      y = valor_log,
+      fill = grupo) +
+    facet_grid(~paste("Dia", dia),
+             space = "free_x",
+             scales = "free_x",
+             axes = "all",
+             ) +
+  geom_boxplot(
+      outlier.shape = NA,
+      width = 0.5,
+      alpha = 1) +
+  geom_sina(color = "black",
+              size = 1.5,
+             stroke = 1,
+             pch = 1,
+             alpha = 1) +
+    stat_summary(fun.y= mean, 
+               geom="point", 
+               shape=95, 
+               size=5, 
+               color="black",
+               stroke = 5,
+               alpha = 1,
+               show.legend = F) +
+
+  theme_minimal() +
+  theme(text = element_text(size = 10,
+                            color = "black"),
+        plot.caption = element_text(size = 10, 
+                                    color = "black",
+                                    hjust = 0.5),
+        legend.position = "top",
+        legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-10,0),
+          legend.text = element_text(size = 10, hjust = 0),
+          legend.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
+                                   color = "black"),
+        axis.text.y = element_text(size = 10,
+                                   color = "black"),
+        strip.text = element_text(size = 10,
+                                  color = "black"),
+        strip.text.y = element_text(size = 10,
+                                  color = "black",
+                                  angle = 0),
+        axis.line.x = element_line(color = "black",
+                                   size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+
+        axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
+        panel.grid = element_line(linetype = 2,
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
+  scale_fill_manual(values = c("PBS" = "white",
+                             "ED-III" = "#9f9fed",
+                             "QB" = "#adf7b6",
+                             "Vac" = "#a9def9",
+                             "Alum" = "#ff5d8f")) +
+    labs(fill = "Grupo",
+       color = "Grupo",
+       x = "",
+       y = "OD50")  +
+    stat_pvalue_manual(
+    data = stat.test_dia,
+    # label = "label_full", 
+    hide.ns = TRUE,
+    xmin = "xmin", 
+    xmax = "xmax",
+    y.position = "y.position",
+    bracket.size = 0.3, 
+    tip.length = 0.0,
+    size = 3,
+    vjust = 0.7,
+    step.increase = 0.05,
+  )
+
+plot
+```
+
+
+```{r fig.height=8, fig.width=8}
+plot_group = elisa_od50_exp12 %>% 
+  # mutate(grupo_n = str_replace_all(grupo_n, " ", "\n")) %>% 
+  arrange(grupo, dose) %>% 
+  mutate(
+    grupo_n = fct_inorder(grupo_n)
+  ) %>% 
+  left_join(anova_summary_group, by = "grupo_n") %>% 
+  ggplot(aes(x = dia, 
+             y = valor_log,
+             fill = grupo)) + 
+  
+  facet_grid(
+    ~grupo_n+paste("p = ", p_anova), 
+    # space  = "free_x",
+    nrow = 1,
+    scales = "free_x",
+    axes   = "margins",
+    strip = strip_nested(size = "variable")
+  ) +
+
+    geom_boxplot(
+      outlier.shape = NA,
+      width = 0.5,
+      alpha = 1) +
+  # geom_line(aes(group = animal_id),
+  #           position = position_dodge(),
+  #           color = "gray50",
+  #           size = 0.5,
+  #           alpha = 0.5) +
+  geom_jitter(aes(x = dia,
+                  y = valor_log),
+            color = "black",
+            pch = 1,
+            size = 1.5,
+            stroke = 1,
+            position = position_dodge()) +
+    stat_summary(fun.y= mean, 
+               geom="point", 
+               shape=95, 
+               size=5, 
+               color="black",
+               stroke = 5,
+               alpha = 1,
+               show.legend = F) +
+  stat_pvalue_manual(
+    data = stat.test_grupo,
+    # label = "label_full",
+    hide.ns = TRUE,
+    xmin = "xmin",
+    xmax = "xmax",
+    y.position = "y.position",
+    bracket.size = 0.3,
+    tip.length = 0.0,
+    size = 3,
+    vjust = 0,
+    step.increase = 0.05,
+  ) +
+  theme_minimal() +
+  theme(text = element_text(size = 10,
+                            color = "black"),
+        plot.caption = element_text(size = 10, 
+                                    color = "black",
+                                    hjust = 0.5),
+        legend.position = "top",
+        legend.margin=margin(0,0,0,0),
+          legend.box.margin=margin(0,0,-10,0),
+          legend.text = element_text(size = 10, hjust = 0),
+          legend.title = element_text(size = 10),
+        axis.text.x = element_text(size = 10,
+                                   hjust = 0.5,
+                                   color = "black"),
+        axis.text.y = element_text(size = 10,
+                                   color = "black"),
+        strip.text = element_text(size = 10,
+                                  color = "black"),
+        strip.text.y = element_text(size = 10,
+                                  color = "black",
+                                  angle = 0),
+        axis.line.x = element_line(color = "black",
+                                   size = 0.5),
+        axis.line.y = element_line(color = "black",
+                                   size = 0.5),
+        ggh4x.axis.nestline = element_line(linetype =1), 
+        ggh4x.facet.nestline = element_line(colour = "black", linetype = 1),
+
+        axis.ticks.x = element_line(color = "black",
+                                  size = 0.5),
+        axis.ticks.y = element_line(color = "black",
+                                  size = 0.5),
+        panel.grid = element_line(linetype = 2,
+                                  color = "gray90"),
+        panel.grid.major.x = element_blank()) +
+  scale_fill_manual(values = c("PBS" = "white",
+                             "ED-III" = "#9f9fed",
+                             "QB" = "#adf7b6",
+                             "Vac" = "#a9def9",
+                             "Alum" = "#ff5d8f"))+
+    labs(fill = "Grupo",
+       color = "Grupo",
+       shape = "Experimento", 
+       x = "Tempo",
+       y = "log10(OD50)") 
+
+plot_group
+```
+
+
+```{r fig.height=8, fig.width=8}
+#Unir plots
+plot_united = (
+  (plot + theme(plot.title = element_blank(),
+                      plot.subtitle = element_blank())) / 
+  plot_spacer() /
+  (plot_group + theme(plot.title = element_blank(),
+                      legend.position = "none",
+                      plot.subtitle = element_blank())) 
+  )+ 
+  plot_layout(guides = "collect", axes = "collect",
+              heights = c(0.6, -0.05, 0.4)) +
+  plot_annotation(
+    theme = theme(
+      legend.position = "top",
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.margin = margin(0, 0, -10, 0),
+      legend.text = element_text(size = 10, hjust = 0),
+      legend.title = element_text(size = 10),
+      panel.spacing = unit(0, "lines"),
+      plot.margin = margin(0.5, 0, 0, 0, unit = "cm"),
+      plot.title = element_text(hjust = 0,
+                                margin = margin(l = 30,
+                                                b = 0)),
+      plot.subtitle = element_text(hjust = 0, margin = margin(l = 30))
+    ),
+    title = "ELISA OD50",
+    subtitle = "Black thick lines correspond to the mean."
+  )
+
+plot_united
+
+plot_united %>%
+ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_ByGroup_ByDay_Exp1and2.png"),
+       width = 8,
+       height = 8,
+       bg = "white")
+```
+
+
+
+
+
+# 5. IgG Subclasses
 
 ## Todos os experimentos
 ### ANOVA e posthoc
@@ -2110,7 +2464,7 @@ ggplot(aes(sample = valor_log,
                      ) + 
   stat_qq(pch = 21,
           color = "black") +
-  stat_qq_line() +
+  stat_qq_line(show.legend = F) +
   facet_grid(~condicao~teste, 
                scales = "free",
              axes = "all",
@@ -2342,8 +2696,8 @@ plot
 
 plot %>% 
   ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_ByGroup.png"),
-       width = 5,
-       height = 8,
+       width = 10,
+       height = 5,
        bg = "white")
 
 ```
@@ -2460,147 +2814,6 @@ ggsave(filename = here("Colaborações", "Evelyn", "ELISA_OD50_IgG_ByGroup_Exp1.
 
 
 
-# Bootstrapping
-
-## Reamostragem por grupo
-```{r fig.height=5, fig.width=10}
-library(rsample)
-table
-
-# Dados ELISA OD50 (Tabela larga)
-
-# Gerar bootstrap para cada grupo separadamente
-bootstrap_means <-  table %>% 
-  unite(group_dia, c(group, dia), sep = "_") %>% 
-  group_split(group_dia) %>%                       # Dividir os dados por grupo
-  map_dfr(~ {
-    group_name <- unique(.x$group_dia)             # Pegar o nome do grupo
-    boot_data <- bootstraps(.x, times = 10000)  # Gerar bootstraps para o grupo
-    
-    # Calcular a média de cada amostra bootstrap
-    boot_data %>%
-      mutate(
-        group_dia = group_name,                               # Adicionar o nome do grupo
-        mean_value = map_dbl(splits, ~ mean(analysis(.x)$value))
-      )
-  })
-```
-
-Visualizando
-```{r fig.height=10, fig.width=5}
-library(ggridges)
-bootstrap_means %>% 
-         separate(group_dia, into = c("group", "dia"), sep = "_", remove = F) %>%  
-       mutate(group = fct_relevel(group, table$group %>% unique() %>% as.character())) %>% 
-ggplot(
-       aes(x = mean_value,
-           y = group,
-           group = group_dia,
-           fill = group)) +
-  geom_density_ridges()+
-  # geom_density_ridges(jittered_points = TRUE,
-  #                     stat = "binline",
-  #   position = position_points_jitter(width = 0.05, height = 0), 
-  #   point_shape = '.', point_size = 3, point_alpha = 1, alpha = 1,
-  #   scale = 1) +
-  
-  labs(title = "Médias de reamostragens por Bootstrap, IC 95%",
-       x = "Frequency",
-       y = "Mean") +
-  facet_wrap(~dia, 
-             scales = "free",
-             ncol = 1) +
-  theme_minimal() +
-  theme(axis.line.x = element_line(size = 1))
-```
-
-## IC
-```{r}
-# Intervalos de confiança
-# Calcular IC 95% por grupo
-ci_results <- bootstrap_means %>%
-  group_by(group_dia) %>%
-  summarise(
-    lower_ci = quantile(mean_value, 0.025),  # Percentil 2.5%
-    upper_ci = quantile(mean_value, 0.975),  # Percentil 97.5%
-    mean_bootstrap = mean(mean_value)        # Média das reamostras
-  ) %>% 
-  separate(group_dia, into = c("group", "dia"), sep = "_") %>% 
-         mutate(group = fct_relevel(group, table$group %>% unique() %>% as.character()))
-bootstrap_means
-ci_results
-
-
-ggplot(ci_results, aes(x = group, y = mean_bootstrap)) +
-  geom_point(size = 3, color = "red") +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0) +
-  labs(title = "Médias de reamostragens por Bootstrap, IC 95%",
-       x = "Grupo",
-       y = "Média") +
-  facet_wrap(~dia, scales = "free", nrow = 1) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1),
-        axis.line.x = element_line(size = 1))
-
-```
-
-## Bootstrap de diferenças
-```{r}
-trt_10 = bootstrap_means %>% 
-    separate(group_dia, into = c("group", "dia"), sep = "_") %>% 
-    mutate(group = fct_relevel(group, table$group %>% unique() %>% as.character())) %>% 
-  filter(group == "Alum 10 μg",
-         dia == "35") %>% 
-  pull(mean_value)
-
-ctrl = bootstrap_means %>% 
-    separate(group_dia, into = c("group", "dia"), sep = "_") %>% 
-    mutate(group = fct_relevel(group, table$group %>% unique() %>% as.character())) %>% 
-  filter(group == "PBS",
-         dia == "35") %>% 
-  pull(mean_value)
-
-# p-valor baseado na hipótese nula
-p_value_null <- mean(abs(bootstrap_diff_null) >= 0)
-
-
-obs_diff = mean(trt_10) - mean(ctrl)
-bootstrap_diff = trt_10 - ctrl
-bootstrap_diff_null <- bootstrap_diff - obs_diff
-ci <- quantile(bootstrap_diff, probs = c(0.025, 0.975))
-mean_diff <- mean(bootstrap_diff)
-diff_observed <- mean(trt_10) - mean(ctrl)
-bootstrap_null <- bootstrap_diff - mean(bootstrap_diff) # Recentrar a distribuição bootstrapada para a hipotese nula
-p_value_null <- mean(abs(bootstrap_null) >= abs(diff_observed)) #O valor p é a proporção de valores do bootstrap maiores ou menores que a diferença observada
-
-diff_bootstrap_results <- tibble(
-  mean_diff = mean_diff,
-  lower_ci = ci[1],
-  upper_ci = ci[2],
-  p_value = p_value_null
-)
-
-ggplot(diff_bootstrap_results, aes(x = "", y = mean_diff)) +
-  geom_errorbar(aes(ymin = lower_ci, ymax = upper_ci), width = 0) +
-  geom_point(size = 3, color = "red") +
-  labs(title = "Bootstrap of mean differences (n = 1000), IC 95%",
-       subtitle = paste0("pvalue = ", diff_bootstrap_results$p_value), 
-       x = "Group",
-       y = "Mean differences") +
-  # scale_y_continuous(limits = c(0, 700), breaks = seq(0, 700, 100))+
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45,
-                                   hjust = 1),
-        axis.line.x = element_line(size = 1),
-        panel.grid = element_line(color = "gray75",
-                                  linetype = 2)) +
-  geom_hline(yintercept = 0, color = "black",
-             linetype = 2) 
-
-
-
-```
 
 
 
