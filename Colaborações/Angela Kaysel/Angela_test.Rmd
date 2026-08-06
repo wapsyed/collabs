@@ -1,31 +1,32 @@
 ---
-title: "Desafio Bioinformático: Predição de ncRNAs em *Leishmania braziliensis*"
-subtitle: "Pipeline Tryp-ncRNA e Análise Downstream Integrada"
+title: 'Desafio Bioinformático: Predição de ncRNAs em *Leishmania braziliensis*'
 author: "Wasim A. P. Syed"
 date: "`r Sys.Date()`"
-output: 
+output:
+  pdf_document:
+    toc: true
   html_document:
     toc: true
     toc_float: true
     theme: flatly
     highlight: tango
     code_folding: show
+subtitle: "Pipeline Tryp-ncRNA e Análise Downstream Integrada"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk_set(
-  echo = TRUE, 
-  warning = FALSE, 
-  message = FALSE,
-  eval = T # Altere para TRUE ao executar no seu servidor/computador
-)
-```
+# Observação
 
-#Pacotes
-```{r}
-#Baixar pacotes
-install.packages(c("here", "fs", "gert", "rentrez", "reticulate", "BiocManager"))
+Devido a limitações computacionais locais na execução do pipeline (mesmo em ambiente isolado via Conda/Docker e com subamostragem dos arquivos FASTQ) e à ausência de dados de exemplo no repositório original, optou-se pela utilização de um conjunto de dados público de ncRNAs de Leishmania baixado do artigo intutulado "Comparative and systems analyses of Leishmania spp. non-coding RNAs through developmental stages" (PLOS Neglected Tropical Diseases, DOI: 10.1371/journal.pntd.0013108), permitindo o desenvolvimento e a validação do script de visualização dos resultados.
 
+O presente Markdown contêm os scripts para preparar os dados utilizados como input no pipeline TriTryp-ncRNA, bem como a execução do mesmo adaptado para o ambiente R/Markdown. Além disso, contém também os códigos para limpeza do dataset do artigo citado acima e para a visualização simples desses dados.
+
+# Pacotes
+
+```{r message=FALSE, warning=FALSE}
+# Baixar pacotes do R ===============
+# install.packages(c("here", "fs", "gert", "rentrez", "reticulate", "BiocManager", "tidyverse"))
+# BiocManager::install("fastqcr")
+# BiocManager::install("ShortRead")
 # Carregar pacotes
 library(here)         
 library(fs)           
@@ -34,43 +35,57 @@ library(BiocManager)
 library(BiocFileCache)
 library(rentrez)
 library(reticulate)
-
+library(tidyverse)
 library(fastqcr)
+library(ShortRead)
+library(scales)
+library(ggsci)
+library(ggdist)   
+library(patchwork)
+
+## Setup no terminal ===============
+
+# sudo apt update
+# #Install miniconda
+# wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+# bash Miniconda3-latest-Linux-x86_64.sh
+# #Install Python
+# sudo apt install -y python3-venv python3-pip
+# 
+# #Instalar pacotes necessários
+# #Instalando o SRA Toolkit (rodar no terminal)
+# sudo apt install sra-toolkit
+# fasterq-dump --version
+# 
+# # 1. Dar permissão de execução no arquivo dentro da pasta atual
+# chmod +x ./TriTry-ncRNA/scripts/instalar_dependencias.sh
+# 
+# # 2. Executar o script
+# ./TriTry-ncRNA/scripts/instalar_dependencias.sh
 
 ```
-
-```{bash}
-#Instalando o SRA Toolkit (rodar no terminal)
-sudo apt update
-sudo apt install sra-toolkit
-fasterq-dump --version
-```
-
-```{bash}
-sudo apt update 
-#Install miniconda
-wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-bash Miniconda3-latest-Linux-x86_64.sh
-#Install Python
-sudo apt install -y python3-venv python3-pip
-```
-
 
 # Preparar arquivos input
 
 ## Definir diretórios
+
 ```{r}
 # Definir diretórios
 project_dir = here::here("Colaborações", "Angela Kaysel")
 data_dir <- here::here(project_dir, "data")
-pred_dir <- here::here(project_dir, "output_pred")
-char_dir <- here::here(project_dir, "output_char")
 
-#Criar diretórios
-fs::dir_create(c(data_dir, pred_dir, char_dir))
+# Define sample accession and workspace directory paths
+target_srr <- "SRR7945375"
+sample_dir <- fs::path(data_dir, target_srr)
+qc_dir     <- fs::path(sample_dir, "fastqc_results")
+
+# Make directories
+fs::dir_create(data_dir, sample_dir, qc_dir)
+
 ```
 
 ## Baixar genoma
+
 Já existe no TriTryp ncRNA, mas se fosse necessário, poderia rodar o seguinte código.
 
 ```{r}
@@ -81,41 +96,26 @@ Já existe no TriTryp ncRNA, mas se fosse necessário, poderia rodar o seguinte 
 # #Baixar arquivos do NCBI via FTP
 # ncbi_base_url <- "https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/000/002/725/GCF_000002725.2_ASM272v2"
 # #Genoma
-# genome_url    <- paste0(ncbi_base_url, "/GCF_000002725.2_ASM272v2_genomic.fna.gz") 
+# genome_url    <- paste0(ncbi_base_url, "/GCF_000002725.2_ASM272v2_genomic.fna.gz")
 # #Anotação do genoma
 # gff_url       <- paste0(ncbi_base_url, "/GCF_000002725.2_ASM272v2_genomic.gff.gz")
 # 
-# # Baixar 
+# # Baixar
 # genome_file <- bfcrpath(bfc, genome_url)
 # gff_file    <- bfcrpath(bfc, gff_url)
 # 
 # # Copiar/criar links para a pasta data/ com nomes padronizados
-# fs::file_copy(genome_file, fs::path(data_dir, "Lbraziliensis_Genome.fasta"), 
+# fs::file_copy(genome_file, fs::path(data_dir, "Lbraziliensis_Genome.fasta"),
 #               overwrite = TRUE)
-# fs::file_copy(gff_file, fs::path(data_dir, "Lbraziliensis_Annotation.gff"), 
+# fs::file_copy(gff_file, fs::path(data_dir, "Lbraziliensis_Annotation.gff"),
 #               overwrite = TRUE)
 ```
 
-## Baixar reads via ENA 
+## Baixar reads via ENA
+
+Construir query e baixar
 
 ```{r}
-# --------
-# Load required libraries
-# --------
-# Load tidyverse core tools and fastqcr for quality assessment
-library(tidyverse)
-library(fastqcr)
-
-# Define sample accession and workspace directory paths
-target_srr <- "SRR7945375"
-data_dir   <- here::here("Colaborações", "Angela Kaysel", "data")
-sample_dir <- fs::path(data_dir, target_srr)
-qc_dir     <- fs::path(sample_dir, "fastqc_results")
-
-# Make directories
-fs::dir_create(sample_dir)
-fs::dir_create(qc_dir)
-
 # Construct ENA Portal API query URL
 ena_api_url <- sprintf(
   "https://www.ebi.ac.uk/ena/portal/api/filereport?accession=%s&result=read_run&fields=fastq_ftp&format=tsv",
@@ -155,18 +155,64 @@ purrr::walk(fastq_urls, function(url) {
 seq_files <- fs::dir_ls(sample_dir, regexp = paste0(target_srr, ".*\\.fastq\\.gz$"))
 
 
-# Run FastQC 
-system2(
-  command = "fastqc",
-  args    = c(
-    "--outdir", shQuote(qc_dir),
-    "--threads", "4",
-    purrr::map_chr(seq_files, shQuote)
-  )
-)
+# ## Run FastQC 
+# if (length(seq_files) > 0 && all(file.exists(seq_files))) {
+#   
+#   # Verifica se o FastQC está instalado e acessível no ambiente
+#   fastqc_path <- Sys.which("fastqc")
+#   
+#   if (nzchar(fastqc_path)) {
+#     message("Iniciando o controle de qualidade com FastQC...")
+#     
+#     # Cria o diretório de saída caso ainda não exista
+#     if (!dir.exists(qc_dir)) dir.create(qc_dir, recursive = TRUE)
+#     
+#     system2(
+#       command = "fastqc",
+#       args    = c(
+#         "--outdir", shQuote(qc_dir),
+#         "--threads", "4",
+#         purrr::map_chr(seq_files, shQuote)
+#       )
+#     )
+#     
+#     message("FastQC concluído com sucesso!")
+#     
+#   } else {
+#     warning("O executável 'fastqc' não foi encontrado no PATH do sistema. Pulei esta etapa.")
+#   }
+#   
+# } else {
+#   warning("Nenhum arquivo de sequenciamento válido foi encontrado em 'seq_files'. FastQC não executado.")
+# }
+```
+
+## Quebrar sequencia para rodar mais rápido
+
+```{r}
+# 1. Definir o arquivo de entrada e de saída
+fastq_gz_input <- fs::path(sample_dir, "SRR7945375_1.fastq.gz") # ou .fastq
+fastq_gz_output <- fs::path(sample_dir,"SRR7945375_1_1pct.fastq.gz")
+
+# 2. Contar quantas reads existem para calcular 10%
+total_reads <- countFastq(fastq_gz_input)$records
+n_1pct <- round(total_reads * 0.01)
+
+# 3. Criar o amostrador
+set.seed(100) # Garante reprodutibilidade
+fs <- FastqSampler(fastq_gz_input, n = n_1pct)
+
+# 4. Amostrar as reads e salvar o novo FASTQ
+sampled_reads <- yield(fs)
+# writeFastq(sampled_reads, fastq_gz_output, compress = TRUE)
+
+close(fs)
+cat("Total de reads originais:", total_reads, 
+    "\nTotal de reads salvas:", length(sampled_reads), "\n")
 ```
 
 ## Analisar qualidade do FastQC
+
 ```{r}
 # Aggregate FastQC quality reports
 qc <- fastqcr::qc_aggregate(qc.dir = qc_dir)
@@ -196,46 +242,43 @@ qc_plot(qc_data, "Per base sequence content")
 qc_plot(qc_data, "Sequence duplication levels")
 ```
 
-
-
-
-
 # Predição via TrypncRNA
 
+## Baixar repositório
 
+```{r reticulate setup, message=FALSE, warning=FALSE}
+# 1. Diretórios principais e identificador da amostra
+repo_path   <- fs::path(project_dir, "TriTry-ncRNA")
 
-```{r reticulate setup}
-# Load 
-library(gert)
-library(reticulate)
-library(tidyverse)
-#Instalar python
-# reticulate::install_python()
-# Clone GitHub repository
+# 2. Clonar o repositório GitHub caso ainda não exista localmente
 if (!fs::dir_exists(repo_path)) {
   gert::git_clone(
     url  = "https://github.com/AKCLAB/TriTry-ncRNA.git",
     path = repo_path
-  )}
+  )
+}
 
-# Make directories and define sample
-project_dir <- here::here("Colaborações", "Angela Kaysel")
-repo_path   <- fs::path(project_dir, "TriTry-ncRNA")
-target_srr  <- "SRR7945375"
-
-# Define local sample folder path where your FASTQ files are stored
+# 3. Definição de pastas de entrada (data) e saída (results)
 sample_dir  <- fs::path(project_dir, "data", target_srr)
 results_dir <- fs::path(project_dir, "results", target_srr)
 
-# Ensure sample and results output directories exist on disk
+# Garantir que os diretórios existem no disco
 fs::dir_create(sample_dir)
 fs::dir_create(results_dir)
 
-# Write user sample path to listdir file
-list_dir_file <- fs::path(sample_dir, "listdir.txt")
-readr::write_lines(as.character(sample_dir), file = list_dir_file)
+# 4. Caminho exato do seu arquivo FASTQ (10% subamostrado)
+target_fastq <- fs::path(sample_dir, "SRR7945375_1_1pct.fastq.gz")
 
-# Define reference genome and annotation paths
+# Verificar se o arquivo realmente existe antes de rodar
+if (!fs::file_exists(target_fastq)) {
+  warning("ATENÇÃO: O arquivo ", target_fastq, " não foi encontrado no disco!")
+}
+
+# 5. Escrever o caminho no arquivo listdir.txt exigido pelo pipeline
+list_dir_file <- fs::path(sample_dir, "listdir.txt")
+readr::write_lines(as.character(target_fastq), file = list_dir_file)
+
+# 6. Definir caminhos das referências (arquivos de teste do repositório)
 script_path <- fs::path(repo_path, "scripts", "pipe_ncrna.sh")
 db_dir      <- fs::path(repo_path, "database")
 ref_fasta   <- fs::path(repo_path, "test", "LBRAZ_M2903.Dec2022.fasta")
@@ -243,89 +286,261 @@ ref_gff     <- fs::path(repo_path, "test", "LBRAZ_M2903.Dec2022.gff")
 utr5_file   <- fs::path(repo_path, "test", "UTRme_fiveutr.tsv")
 utr3_file   <- fs::path(repo_path, "test", "UTRme_threeutr.tsv")
 
-# Execute Tryp-ncRNA pipeline 
-system2(
-  command = "bash",
-  args    = c(
-    shQuote(script_path),
-    "-dir_list", shQuote(list_dir_file), #Directory
-    "-output",   shQuote(results_dir), #Output
-    "-db",       shQuote(db_dir), #Output folder
-    "-threads",  "4", #Threads
-    "-reffasta", shQuote(ref_fasta), #Genome FASTA
-    "-refgff",   shQuote(ref_gff), #Genome annotation
-    "-utr5",     shQuote(utr5_file), #5'UTR
-    "-utr3",     shQuote(utr3_file), #3'UTR
-    "-dir_tool", shQuote(repo_path)
-  )
-)
+# # 7. Executar o pipeline Tryp-ncRNA via system2
+# system2(
+#   command = "bash",
+#   args    = c(
+#     shQuote(script_path),
+#     "-dir_list", shQuote(list_dir_file),
+#     "-output",   shQuote(results_dir),
+#     "-db",       shQuote(db_dir),
+#     "-threads",  "12",
+#     "-reffasta", shQuote(ref_fasta),
+#     "-refgff",   shQuote(ref_gff),
+#     "-utr5",     shQuote(utr5_file),
+#     "-utr3",     shQuote(utr3_file),
+#     "-dir_tool", shQuote(repo_path)
+#   )
+# )
 
 ```
 
-```{r}
-library(tidyverse)
-library(knitr)
-library(scales)
+## Rodar no Docker
 
+```{r}
+## Rodar no terminal ===========
+# #Install docker
+# sudo snap install docker
+# 
+# # 1. Fazer o Build da imagem
+# sudo docker build -t tryp -f TriTry-ncRNA/docker/Dockerfile .
+# 
+# # 2. Iniciar o container montando a pasta atual
+# sudo docker run -v `pwd`:/workspace -w /workspace -it tryp
+# 
+# # 3 e 4. Rodar o script direto através do ambiente conda criado no Dockerfile
+# conda run -n tryp-ncrna bash /workspace/TriTry-ncRNA/scripts/pipe_ncrna.sh \
+#   -dir_list /workspace/data/SRR7945375/listdir.txt \
+#   -output /workspace/results/SRR7945375 \
+#   -db /workspace/TriTry-ncRNA/database \
+#   -threads 8 \
+#   -reffasta /workspace/TriTry-ncRNA/test/LBRAZ_M2903.Dec2022.fasta \
+#   -refgff /workspace/TriTry-ncRNA/test/LBRAZ_M2903.Dec2022.gff \
+#   -utr5 /workspace/TriTry-ncRNA/test/UTRme_fiveutr.tsv \
+#   -utr3 /workspace/TriTry-ncRNA/test/UTRme_threeutr.tsv \
+#   -dir_tool /programs
+
+```
+
+## Analisar resultados
+
+### Limpar dados
+
+```{r}
 # Importar a tabela final de caracterização gerada pelo pipeline
-ncrna_raw <- read_tsv("output_char/final_ncRNA_summary.tsv")
+ncrna_raw <- read_tsv(
+  here(project_dir, "results", "LbraziliensisMHOMBR75M2903_merged_processed.bed"),
+  col_names = c("chrom", "start", "end", "name", "score", "strand"),
+  show_col_types = FALSE
+)
 
 # Tratar e classificar os ncRNAs
-ncrna_classified <- ncrna_raw %>%
-  filter(coding_score < 0.5) %>% # Filtro de corte para não codificantes
+ncrna_classified = ncrna_raw %>%
+  #Limpar tabela
+  #Retirar cromossomos scaffold (?)
+  filter(!str_detect(chrom, "SCAF0")) %>% 
+  #Name = ncRNA name + classe
+  separate(name, into = c("name", "class"), sep = "_") %>% 
+  #Chrom = species + chrom/scaffold
+  separate(chrom, into = c("species", "chrom"), sep = "_") %>% 
+  #Limpar nome da espécie
+  mutate(species = if_else(species == "LBRM2903", "LbrM2903", species)) %>% 
+  #Calcular tamanho
+  mutate(size = end-start) %>% 
+    #Classificar por tamanho e função
   mutate(
-    category = if_else(length >= 200, "lncRNA candidato", "sncRNA candidato"),
-    log2_tpm = log2(TPM + 1)
+    group = case_when(
+      class %in% c("SL-RNA", "snRNA", "IRES") ~ "Splicing\n& Processing",
+      class %in% c("tRNA", "rRNA", "SRP") ~ "Translation\n& Ribosome",
+      class %in% c("gRNA", "snoRNA", "scaRNA") ~ "RNA Modification\n& Editing",
+      class %in% c("lncRNA") ~ "Long ncRNA",
+      class %in% c("miRNA", "sRNA", "Cis-reg") ~ "Small Regulatory\n& Cis-elements",
+      class %in% c("no-RNA", "Unclassified") ~ "Unannotated\nNon-ncRNA",
+      TRUE ~ "Other"
+    )
   )
 
-# Dados simulados baseados na estrutura esperada para demonstrar a renderização dos gráficos
-set.seed(42)
-n_obs <- 180
-ncrna_classified <- tibble(
-  id = paste0("Lbr_ncRNA_", 1:n_obs),
-  length = c(rpois(120, lambda = 600), rpois(60, lambda = 120)),
-  coding_score = runif(n_obs, min = 0.01, max = 0.48),
-  TPM = rlnorm(n_obs, meanlog = 2, sdlog = 1.5)
-) %>%
-mutate(
-  category = if_else(length >= 200, "lncRNA candidato", "sncRNA candidato"),
-  log2_tpm = log2(TPM + 1)
-)
+#Print
+ncrna_classified
 
-summary_table <- ncrna_classified %>%
-  group_by(category) %>%
-  summarise(
-    `Total Identificado` = n(),
-    `Tamanho Médio (pb)` = round(mean(length), 1),
-    `TPM Médio` = round(mean(TPM), 2),
-    `Mediana TPM` = round(median(TPM), 2)
-  )
+#Calcular estatísticas
+ncrna_classified_summary = ncrna_classified %>% 
+  group_by(group, class) %>% 
+  summarise(median_size = median(size, na.rm = T),
+            mean_size = mean(size, na.rm = T),
+            n_ncrnas = n(),
+            sd_size = sd(size, na.rm = T),
+            se_size = sd_size/sqrt(n_ncrnas)) %>% 
+  ungroup()
 
-kable(summary_table, caption = "Tabela 1: Resumo dos ncRNAs preditos em L. braziliensis (SRR7821918)")
-
+#Print
+ncrna_classified_summary
 ```
 
-```{r}
-ggplot(ncrna_classified, aes(x = length, y = coding_score, color = category)) +
-  geom_point(alpha = 0.7, size = 2.5) +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "red3", linewidth = 0.8) +
-  scale_color_manual(values = c("lncRNA candidato" = "#1f77b4", "sncRNA candidato" = "#ff7f0e")) +
+### Distribuições
+
+```{r fig.height=12, fig.width=12}
+#Em quais cromossomos estão esses ncRNAs?
+ncrna_classified_chromosome = ncrna_classified %>% 
+  group_by(chrom, group) %>% 
+  summarise(n = n()) %>%
+  ungroup() %>% 
+  ggplot() +
+  aes(y = fct_rev(chrom),
+      x = n,
+      fill = group) +
   labs(
-    title = "Potencial de Codificação dos Transcritos Preditos",
-    x = "Tamanho do Transcrito (pb)",
-    y = "Coding Potential Score (CPC2)",
-    color = "Classificação"
-  )
-ggplot(ncrna_classified, aes(x = category, y = log2_tpm, fill = category)) +
-  geom_violin(alpha = 0.4, color = NA) +
-  geom_boxplot(width = 0.2, outlier.shape = 21, alpha = 0.8) +
-  scale_fill_manual(values = c("lncRNA candidato" = "#1f77b4", "sncRNA candidato" = "#ff7f0e")) +
-  labs(
-    title = "Distribuição da Expressão por Categoria de ncRNA",
-    x = "Categoria",
-    y = "Expressão Log2(TPM + 1)",
-    fill = "Categoria"
+    title = "Distribution of ncRNA groups, by Chromosome",
+    y = "Chromosome",
+    x = "Total",
+    fill = "Group"
   ) +
-  theme(legend.position = "none")
+  facet_grid(~group, scales = "free") +
+  geom_col(color = "white",
+           size = 0.2) +
+  theme_classic() +
+  scale_x_continuous(expand = c(0,0)) +
+  ggsci::scale_fill_npg() +
+  theme(
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.ticks.x = element_line(linewidth = 1),
+    axis.ticks.y = element_line(linewidth = 1),
+    legend.position = "top",
+    legend.key.width  = unit(0.2, "cm"),
+    legend.key.height = unit(0.5, "cm"),
+    legend.text = element_text(size = 10),
+    strip.text = element_text(size = 10, color = "black", face = "bold"),
+    strip.background = element_blank(),
+    panel.grid.major.x = element_line(color = "gray90", linetype = 2),
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5), 
+    plot.title.position = "panel",
+  ) +
+  guides(fill = guide_legend(nrow = 1))
+
+
+
+#Qual o tamanho dessas classes, por grupo? Boxplot + Barras
+ncrna_classified_summary_bars = ncrna_classified_summary %>% 
+  arrange(median_size) %>% 
+  mutate(class = fct_inorder(class)) %>% 
+  ggplot() +
+  aes(x = median_size,
+      y = class) +
+  labs(title = "ncRNA class, by median size",
+       subtitle = "Bars correspond to the median, with boxplots showing the IQR.",
+       x = "Size (nt)",
+       y = "Class",
+       fill = "Group",
+       ) +
+  geom_col(aes(fill = group)) +
+  geom_boxplot(data = ncrna_classified,
+               aes(x = size),
+               width = 0.5,
+               alpha = 0, outliers = F) +
+  theme_classic() +
+  scale_x_continuous(expand = c(0,0)) +
+  ggsci::scale_fill_npg() +
+  theme(
+        axis.title = element_text(size = 10, face = "bold"),
+        axis.text = element_text(size = 10),
+        legend.position = "top",
+        legend.key.width  = unit(0.2, "cm"),
+        legend.key.height = unit(0.5, "cm"),
+        legend.text = element_text(size = 10),
+        panel.grid.major.x = element_line(color = "gray90", linetype = 2),
+        plot.title = element_text(face = "bold", size = 12, hjust = 0.5), 
+        plot.title.position = "plot") +
+  guides(fill = guide_legend(nrow = 1))
+
+
+#Qual a distribuição dos tamanhos? Visualizar pontos
+ncrna_classified_distribution = ncrna_classified %>% 
+  mutate(class = fct_reorder(class, size, .fun = median)) %>% 
+  ggplot(aes(x = class, y = size, fill = group, color = group)) +
+  
+  stat_halfeye(
+    side = "right",
+    adjust = 0.5,
+    width = 0.6,
+    .width = 0,              
+    justification = -0.2,
+    point_colour = NA,
+    alpha = 0.7
+  ) +
+  
+  geom_boxplot(
+    width = 0.15,
+    outlier.shape = NA,
+    alpha = 1,
+    color = "black"
+  ) +
+  
+  stat_dots(
+    side = "left",
+    justification = 1.2,
+    binwidth = NA,          
+    dotsize = 0.4,
+    alpha = 0.3
+  ) +
+  
+  facet_wrap(~group, scales = "free",
+             ncol = 1) +
+  labs(
+    title = "Distribution of ncRNA size,\nby class and group",
+    y = "Size (nt)",
+    x = "Class",
+    fill = "Group"
+  ) +
+  theme_classic() +
+  # scale_y_continuous(expand = c(0,0)) +
+  ggsci::scale_fill_npg() +
+  ggsci::scale_color_npg() +
+  theme(
+    axis.title = element_text(size = 10, face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.ticks.x = element_line(linewidth = 1),
+    axis.ticks.y = element_line(linewidth = 1),
+    legend.position = "none",
+    strip.text = element_text(size = 10, color = "black", face = "bold"),
+    strip.background = element_blank(),
+    panel.grid.major.y = element_line(color = "gray90", linetype = 2),
+    plot.title = element_text(face = "bold", size = 12, hjust = 0.5), 
+    plot.title.position = "panel"
+  )
+
+
+
+#Merge plots
+a = ncrna_classified_chromosome + theme(panel.spacing.x = unit(0.5, "cm"))
+b = ncrna_classified_summary_bars + theme(legend.position = "none") 
+c = ncrna_classified_distribution 
+
+ncrna_classified_patch = 
+  ((a/b) | (c)) +
+  plot_layout(guides = "collect",
+              widths = c(0.8, 0.2),
+              heights = c(0.8, 0.2)) +
+  plot_annotation(theme = theme(legend.position = "top",
+                                legend.justification = "left"))
+
+#Print
+ncrna_classified_patch
+
+#Save
+ncrna_classified_patch %>%
+  ggsave(filename = here(project_dir, "Figures", "ncRNA_summaries_bars_distribution.png"),
+         width = 12,
+         height = 12)
 
 ```
