@@ -1,0 +1,134 @@
+---
+title: "Plots"
+output: html_document
+---
+Vulvoplot
+```{r fig.height=4, fig.width=6}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+# create a dataset
+
+df <- tibble::tibble(
+  name = factor(
+    c(
+      rep("Normal", 500),
+      rep("Right-skewed\nGamma", 500),
+      rep("Left-skewed\nGamma", 500),
+      rep("Bimodal\nfrom Normal", 500)
+    ),
+    levels = c("Normal", "Right-skewed\nGamma", "Left-skewed\nGamma", "Bimodal\nfrom Normal")
+  ),
+  value = c(
+    # 1. Symmetric Normal distribution (mean = 10, sd = 3)
+    stats::rnorm(500, mean = 10, sd = 3),
+    
+    # # 2. Right-skewed distribution (Gamma with long right tail)
+    stats::rgamma(500, shape = 2, scale = 3),
+    
+    # 3. Left-skewed distribution (Inverted Gamma with long left tail)
+    25 - stats::rgamma(500, shape = 2, scale = 3),
+    
+    # 4. Bimodal distribution (Mixture of two Normal distributions at means 4 and 16)
+    c(stats::rnorm(250, mean = 4, sd = 1.5), stats::rnorm(250, mean = 16, sd = 1.5))
+  )
+)
+
+#Add manuallly (clicli + cool)
+clicli_cool = df %>% 
+  group_by(name) %>% 
+  summarise(clicli = max(value),
+            cool = min(value)) %>% 
+  ungroup() %>% 
+  pivot_longer(cols = c("clicli", "cool"),
+               names_to = "stat", values_to = "value")
+
+# Plot
+vulvoplot = df %>%
+  ggplot( aes(x=name, y=value, 
+              fill=name,
+              color = name)) +
+    geom_violin(width=1, alpha = 0.5, color = "white") +
+    geom_violin(width=0.5, alpha = 1, color = "white", weight = 5) +
+    geom_boxplot(width=0.05, color="white", fill = "white", 
+                 outliers = F,
+                 alpha= 1, notch = T, notchwidth = 0.2, ) +
+    
+    #Add clicli
+    geom_point(data = clicli_cool %>% filter(stat == "clicli"), 
+               mapping = aes(x = name, y = value), 
+               pch = 23,size = 3, fill = "white", stroke = 1) +
+    geom_text(data = clicli_cool %>% filter(stat == "clicli"), 
+               mapping = aes(x = name, y = value, label = "Clicli"),
+              vjust = 0.5, hjust = -0.5, color = "black") +
+    
+    #Add cool
+    geom_point(data = clicli_cool %>% filter(stat == "cool"), 
+               mapping = aes(x = name, y = value), 
+               pch = 21, size = 2, fill = "white", stroke = 1) +
+    geom_text(data = clicli_cool %>% filter(stat == "cool"), 
+               mapping = aes(x = name, y = value, label = "Cool"),
+              vjust = 0.5, hjust = -0.5, color = "black") +
+  
+    scale_fill_manual(values = c("#CA6702", "#d08c60", "#9B2226", "#E07A5F", "#F2CC8F")) +
+    scale_color_manual(values = c("#CA6702", "#d08c60", "#9B2226", "#E07A5F", "#F2CC8F")) +
+    theme_classic() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=12, face = "bold"),
+      panel.grid.major.x = element_blank(),panel.grid.major.y = element_line(color = "gray", linetype = 2, size = 0.2),
+      axis.ticks.y = element_blank(),axis.line.y = element_blank(), axis.line.x = element_line(size = 1, color = "black"), axis.text = element_text(size = 10)
+    ) +
+    labs(title = "Vulvoplot",
+         y= "Value",
+         x = "")
+
+vulvoplot
+```
+
+
+
+Planaria plot
+```{r fig.height=4, fig.width=6}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+# create a dataset
+df_planaria <- data.frame(
+  name=c( rep("A",500), rep("A",200)),
+  value=c( rnorm(500, 10, 7), rnorm(200, 20, 1))
+)
+
+#Add manuallly (eyes)
+eyes = df_planaria %>%
+  group_by(name) %>%
+  summarise(eyes = max(value)) %>%
+  ungroup()
+
+# Plot
+df_planaria %>%
+  ggplot( aes(x=name, y=value, 
+              fill=name,
+              color = name)) +
+    geom_violin(width=0.7, alpha = 0.5, color = "white") +
+    geom_violin(width=0.5, alpha = 1, color = "white", weight = 5) +
+    geom_boxplot(width=0.05, color="white", fill = "white", 
+                 outliers = F,
+                 alpha= 1, notch = T, notchwidth = 0.2, ) +
+  
+    scale_fill_manual(values = c("#CA6702",  "#AE2012")) +
+    scale_color_manual(values = c("#CA6702",  "#AE2012")) +
+    theme_classic() +
+    theme(
+      legend.position="none",
+      plot.title = element_text(size=12, face = "bold"),
+      panel.grid.major.x = element_blank(),panel.grid.major.y = element_line(color = "gray", linetype = 2, size = 0.2),
+      axis.ticks.y = element_blank(),axis.line.y = element_blank(), axis.line.x = element_line(size = 1, color = "black"), axis.text = element_text(size = 10)
+    ) +
+    labs(title = "Platelminto plot",
+         y= "Value",
+         x = "")
+
+
+```
+
